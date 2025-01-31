@@ -4,11 +4,13 @@ import { Connection } from '@solana/web3.js';
 import axios, { AxiosError } from 'axios';
 import logger from '../utils/logger';
 
-// Define interface for Solscan error response
 interface SolscanErrorResponse {
   message?: string;
   error?: string;
 }
+
+// Add a test log to verify logger is working
+logger.info('Starting verification script...');
 
 async function verifySetup() {
   logger.info('🔍 Starting environment verification...');
@@ -55,53 +57,29 @@ async function verifySetup() {
       logger.error('❌ Solana RPC connection failed:', error.message);
     }
 
-    // 4. Test Solscan API
-    try {
-      logger.info('Testing Solscan API connection...');
-      // Use a known mainnet address for testing
-      const testWallet = '3YtmWfNtVyMGK2MfKdTwxXsXqd6GQVtJ8iNuVHJNHwRR';
-      const headers: Record<string, string> = {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${environment.solana.solscanApiKey}`  // Changed to Bearer auth
-      };
+    // 4. Test Solscan API if key is provided
+    if (environment.solana.solscanApiKey) {
+      try {
+        logger.info('Testing Solscan API connection...');
+        const testWallet = 'DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y';
+        const headers: Record<string, string> = {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${environment.solana.solscanApiKey}`
+        };
 
-      const response = await axios.get(
-        `${environment.solana.solscanApiUrl}/v2/account/${testWallet}`,  // Changed to v2 endpoint
-        { 
-          headers,
-          validateStatus: (status) => status < 500
+        const response = await axios.get(
+          `${environment.solana.solscanApiUrl}/v2/account/${testWallet}`,
+          { headers }
+        );
+        
+        if (response.status === 200) {
+          results.solscan = true;
+          logger.info('✅ Solscan API connection successful');
         }
-      );
-      
-      if (response.status === 200) {
-        results.solscan = true;
-        logger.info('✅ Solscan API connection successful');
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-    } catch (err) {
-      const error = err as AxiosError<SolscanErrorResponse>;
-      const statusCode = error.response?.status;
-      const errorData = error.response?.data;
-      
-      // Get error message with proper type checking
-      const errorMessage = errorData?.message || errorData?.error || error.message;
-      
-      logger.error('❌ Solscan API connection failed:', 
-        statusCode ? `HTTP ${statusCode}: ${errorMessage}` : errorMessage
-      );
-      
-      logger.debug('Request failed with:', {  // Added debug info
-        statusCode,
-        headers: error.response?.headers,
-        data: error.response?.data
-      });
-      
-      if (statusCode === 429) {
-        logger.info('ℹ️  Note: Rate limit exceeded. Consider getting a Solscan API key');
-      } else if (statusCode === 403) {
-        logger.info('ℹ️  Note: Authentication failed. Check your Solscan API key format');
-      } else {
+      } catch (err) {
+        const error = err as AxiosError<SolscanErrorResponse>;
+        logger.error('❌ Solscan API connection failed:', 
+          error.response?.status || error.message);
         logger.info('ℹ️  Note: Solscan API issues won\'t prevent the app from working');
       }
     }
@@ -123,11 +101,10 @@ async function verifySetup() {
       process.exit(1);
     }
 
-  } catch (err) {
-    const error = err as Error;
+  } catch (error) {
     logger.error('❌ Verification failed:', error);
     process.exit(1);
   }
 }
 
-verifySetup(); 
+verifySetup();
