@@ -15,7 +15,11 @@ interface WalletProviderProps {
 export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
   const network = (import.meta.env.VITE_SOLANA_NETWORK as WalletAdapterNetwork) || WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
-  const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
+  
+  // Use only PhantomWalletAdapter
+  const wallets = useMemo(() => [
+    new PhantomWalletAdapter()
+  ], []);
 
   return (
     <ConnectionProvider endpoint={endpoint}>

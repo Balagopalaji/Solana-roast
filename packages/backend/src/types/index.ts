@@ -1,15 +1,4 @@
-export class AppError extends Error {
-  constructor(
-    public statusCode: number,
-    public status: string,
-    message: string
-  ) {
-    super(message);
-    this.statusCode = statusCode;
-    this.status = status;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
+export { AppError } from './AppError';
 
 export interface ErrorResponse {
   status: string;
@@ -20,8 +9,15 @@ export interface ErrorResponse {
 export interface WalletData {
   address: string;
   balance: number;
-  isActive: boolean;
-  lastActivity: string | null;
-  nftCount?: number;
-  tokenCount?: number;
+  transactionCount: number;
+  nftCount: number;
+  lastActivity?: Date;
+}
+
+export interface RoastResponse {
+  roast: string;
+  meme_top_text: string;
+  meme_bottom_text: string;
+  meme_url?: string;
+  wallet?: WalletData;
 } 

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError, ErrorResponse } from '../types';
+import { AppError } from '../types/AppError';
+import { ErrorResponse } from '../types';
 import logger from '../utils/logger';
-import { environment } from '../config/environment';
 
 export const errorHandler = (
   err: Error | AppError,
@@ -9,16 +9,21 @@ export const errorHandler = (
   res: Response<ErrorResponse>,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
-): void => {
+): Response<ErrorResponse> => {
   logger.error('Error:', err);
 
-  const statusCode = err instanceof AppError ? err.statusCode : 500;
-  const status = err instanceof AppError ? err.status : 'error';
-  const message = err.message || 'Something went wrong';
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      status: err.status,
+      message: err.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
+  }
 
-  res.status(statusCode).json({
-    status,
-    message,
-    ...(environment.nodeEnv === 'development' && { stack: err.stack }),
+  // Default error response for unhandled errors
+  return res.status(500).json({
+    status: 'error',
+    message: 'Something went wrong',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 }; 

@@ -5,6 +5,16 @@ import logger from './utils/logger';
 // Validate environment variables
 validateEnv();
 
+// Add before app.listen
+process.on('unhandledRejection', (error: Error) => {
+  logger.error('Unhandled Rejection:', error);
+});
+
+process.on('uncaughtException', (error: Error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
 const server = app.listen(environment.port, () => {
   logger.info(`Server running in ${environment.nodeEnv} mode on port ${environment.port}`);
 });

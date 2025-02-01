@@ -48,3 +48,77 @@ export default tseslint.config({
   },
 })
 ```
+
+# Solana Roast Frontend
+
+A React-based frontend for generating humorous roasts of Solana wallets.
+
+## Components
+
+### RoastDisplay
+
+Displays the generated roast and meme for a Solana wallet.
+
+```typescript
+interface RoastDisplayProps {
+  roastData: RoastResponse | null;
+  loading: boolean;
+  error: string | null;
+  onClose?: () => void;
+  onMinimize?: () => void;
+}
+```
+
+Example usage:
+```tsx
+<RoastDisplay
+  roastData={roastData}
+  loading={isLoading}
+  error={error}
+  onClose={() => setShowRoast(false)}
+/>
+```
+
+### RoastMeme
+
+Displays the generated meme with top and bottom text.
+
+```typescript
+interface RoastMemeProps {
+  roastData: RoastResponse;
+}
+```
+
+Example usage:
+```tsx
+<RoastMeme roastData={roastData} />
+```
+
+## Testing
+
+Run the test suite:
+```bash
+npm test
+```
+
+Run tests in watch mode:
+```bash
+npm test:watch
+```
+
+## Development
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Start development server:
+```bash
+npm run dev
+```
+
+3. Build for production:
+```bash
+npm run build
+```

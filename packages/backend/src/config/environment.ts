@@ -39,6 +39,10 @@ export const environment = {
     rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
     solscanApiUrl: process.env.SOLSCAN_API_URL || 'https://api.solscan.io',
     solscanApiKey: process.env.SOLSCAN_API_KEY
+  },
+  imgflip: {
+    username: process.env.IMGFLIP_USERNAME || 'your_default_username',
+    password: process.env.IMGFLIP_PASSWORD || 'your_default_password'
   }
 };
 

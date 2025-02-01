@@ -1,41 +1,35 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { environment } from './config/environment';
-import { errorHandler } from './middleware/errorHandler';
-import { requestLogger } from './middleware/requestLogger';
-import healthRoutes from './routes/health';
+import morgan from 'morgan';
+import { errorHandler } from './middleware/error.middleware';
 import roastRoutes from './routes/roast.routes';
+import { environment } from './config/environment';
+import logger from './utils/logger';
+import { requestLogger } from './middleware/logging.middleware';
 
 const app = express();
 
-// Security middleware
+// Middleware
 app.use(helmet());
 app.use(cors({
   origin: environment.corsOrigin,
-  credentials: true,
+  credentials: true
 }));
-
-// Rate limiting
-app.use(rateLimit({
-  windowMs: environment.rateLimitWindow,
-  max: environment.rateLimitMax,
-  message: 'Too many requests from this IP, please try again later.',
-}));
-
-// Body parsing
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// Logging
+app.use(morgan('dev'));
+app.use(express.json());
 app.use(requestLogger);
 
 // Routes
-app.use('/health', healthRoutes);
 app.use('/roast', roastRoutes);
+app.use('/test-connection', roastRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 // Error handling
 app.use(errorHandler);
 
-export default app; 
+export default app;

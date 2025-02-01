@@ -1,5 +1,6 @@
 import { OpenAIService } from '../openai.service';
 import { AppError } from '../../types';
+import { WalletData } from '../../types';
 
 describe('OpenAIService', () => {
   let service: OpenAIService;
@@ -28,6 +29,18 @@ describe('OpenAIService', () => {
 
       const result = await service.generateRoast('DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y');
       expect(result).toEqual(mockResponse);
+    });
+
+    it('should handle test generation', async () => {
+      const mockWalletData: WalletData = {
+        address: 'DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y',
+        balance: 1.5,
+        transactionCount: 10,
+        nftCount: 2,
+        lastActivity: new Date()
+      };
+
+      // Test implementation
     });
   });
 }); 

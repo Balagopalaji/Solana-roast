@@ -16,8 +16,7 @@ export class OpenAIService {
   private cache: NodeCache;
 
   constructor() {
-    // Cache roasts for 24 hours
-    this.cache = new NodeCache({ stdTTL: 86400 });
+    this.cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
   }
 
   private isValidSolanaAddress(address: string): boolean {
@@ -29,38 +28,17 @@ export class OpenAIService {
     }
   }
 
-  private async generateRoastPrompt(walletData: WalletData): Promise<string> {
-    return `Generate a humorous roast for a Solana wallet address. Be creative and funny, but keep it light-hearted.
-    
-Wallet Data:
-- Address: ${walletData.address}
-- Balance: ${walletData.balance} SOL
-- NFTs: ${walletData.nftCount || 0}
-- Tokens: ${walletData.tokenCount || 0}
-- Last Activity: ${walletData.lastActivity || 'Unknown'}
+  private generateRoastPrompt(walletData: WalletData): string {
+    const details = [
+      `Balance: ${walletData.balance} SOL`,
+      `Transaction Count: ${walletData.transactionCount}`,
+      `NFTs: ${walletData.nftCount}`,
+      walletData.lastActivity ? 
+        `Last Active: ${walletData.lastActivity.toLocaleDateString()}` : 
+        'Never active'
+    ];
 
-The response should be in JSON format with three fields:
-- roast: A witty one-liner roasting the wallet based on its data
-- meme_top_text: Top text for a meme
-- meme_bottom_text: Bottom text for a meme
-
-Keep the roast Solana-themed and reference the wallet's actual data. Consider:
-- Low/high balance
-- NFT collection size
-- Token holdings
-- Activity level
-${walletData.balance < 1 ? '- Make a joke about being down bad' : ''}
-${walletData.nftCount === 0 ? '- Reference missing the NFT wave' : ''}
-${!walletData.lastActivity ? '- Joke about wallet inactivity' : ''}
-
-Example response:
-{
-  "roast": "Your wallet's so rekt even SafeMoon holders feel bad for you",
-  "meme_top_text": "BUYS EVERY SOL DIP",
-  "meme_bottom_text": "STILL DOWN 90%"
-}
-
-Important: Respond only with the JSON object, no additional text.`;
+    return `Generate a funny roast for this Solana wallet:\n${details.join('\n')}`;
   }
 
   public async generateRoast(walletData: WalletData): Promise<RoastResponse> {
@@ -76,7 +54,7 @@ Important: Respond only with the JSON object, no additional text.`;
     }
 
     try {
-      const prompt = await this.generateRoastPrompt(walletData);
+      const prompt = this.generateRoastPrompt(walletData);
       
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
@@ -151,8 +129,15 @@ Important: Respond only with the JSON object, no additional text.`;
   }
 
   public async testRoastGeneration(): Promise<RoastResponse> {
-    const testWallet = 'DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y';
-    return this.generateRoast({ address: testWallet, balance: 0, nftCount: 0, tokenCount: 0, lastActivity: null } as WalletData);
+    const testWalletData: WalletData = {
+      address: 'DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y',
+      balance: 1.5,
+      transactionCount: 10,
+      nftCount: 2,
+      lastActivity: new Date()
+    };
+
+    return this.generateRoast(testWalletData);
   }
 }
 

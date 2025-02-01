@@ -1,9 +1,15 @@
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { AppError, WalletData } from '../types';
+import { 
+  Connection, 
+  PublicKey, 
+  LAMPORTS_PER_SOL,
+  SignaturesForAddressOptions 
+} from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { environment } from '../config/environment';
+import { WalletData } from '../types';
 import logger from '../utils/logger';
 import axios from 'axios';
 import NodeCache from 'node-cache';
-import { environment } from '../config/environment';
 
 export class SolanaService {
   private connection: Connection;
@@ -11,13 +17,16 @@ export class SolanaService {
   private cache: NodeCache;
 
   constructor() {
-    this.connection = new Connection(environment.solana.rpcUrl, 'confirmed');
+    this.connection = new Connection(
+      environment.solana.rpcUrl,
+      { commitment: 'confirmed' }
+    );
     this.solscanApiUrl = environment.solana.solscanApiUrl;
     // Cache wallet data for 5 minutes
     this.cache = new NodeCache({ stdTTL: 300 });
   }
 
-  public isValidWalletAddress(address: string): boolean {
+  isValidWalletAddress(address: string): boolean {
     try {
       new PublicKey(address);
       return true;
@@ -26,47 +35,55 @@ export class SolanaService {
     }
   }
 
-  public async getWalletData(address: string): Promise<WalletData> {
-    if (!this.isValidWalletAddress(address)) {
-      throw new AppError(400, 'error', 'Invalid Solana wallet address');
-    }
-
-    // Check cache first
-    const cachedData = this.cache.get<WalletData>(address);
-    if (cachedData) {
-      logger.debug('Returning cached wallet data for:', address);
-      return cachedData;
-    }
-
+  async getWalletData(address: string): Promise<WalletData> {
     try {
-      const publicKey = new PublicKey(address);
-      
-      // Get SOL balance
-      const balance = await this.connection.getBalance(publicKey);
-      
-      // Get account info from Solscan
-      const accountInfo = await this.getSolscanAccountInfo(address);
+      const pubKey = new PublicKey(address);
 
-      const walletData: WalletData = {
+      // Get balance
+      const balance = await this.connection.getBalance(pubKey);
+      const solBalance = balance / LAMPORTS_PER_SOL;
+
+      // Get NFT count
+      const nftResponse = await this.connection.getParsedTokenAccountsByOwner(pubKey, {
+        programId: TOKEN_PROGRAM_ID
+      });
+
+      const nftCount = nftResponse.value.filter(item => {
+        const parsedInfo = item.account.data.parsed.info;
+        return parsedInfo.tokenAmount.decimals === 0 && 
+               parsedInfo.tokenAmount.amount === "1";
+      }).length;
+
+      // Get transaction history using getSignaturesForAddress
+      let transactionCount = 0;
+      let lastActivity: Date | undefined;
+
+      try {
+        const options: SignaturesForAddressOptions = { limit: 1000 };
+        const signatures = await this.connection.getSignaturesForAddress(pubKey, options);
+
+        transactionCount = signatures.length;
+        if (signatures.length > 0 && signatures[0].blockTime) {
+          lastActivity = new Date(signatures[0].blockTime * 1000);
+        }
+      } catch (error) {
+        logger.warn('Failed to fetch transaction history:', error);
+        // Continue with default values if transaction history fails
+      }
+
+      const result = {
         address,
-        balance: balance / LAMPORTS_PER_SOL,
-        isActive: balance > 0,
-        lastActivity: accountInfo.lastActivity,
-        nftCount: accountInfo.nftCount,
-        tokenCount: accountInfo.tokenCount
+        balance: solBalance,
+        nftCount,
+        transactionCount,
+        lastActivity
       };
 
-      // Cache the result
-      this.cache.set(address, walletData);
-
-      return walletData;
+      logger.info('Wallet data fetched:', result);
+      return result;
     } catch (error) {
       logger.error('Error fetching wallet data:', error);
-      throw new AppError(
-        500,
-        'error',
-        'Failed to fetch wallet data. Please try again later.'
-      );
+      throw new Error('Failed to fetch wallet data');
     }
   }
 

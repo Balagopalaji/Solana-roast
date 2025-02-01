@@ -10,9 +10,11 @@
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "jest",
-    "verify": "ts-node src/scripts/verify-env.ts"
+    "verify": "ts-node src/scripts/verify-env.ts",
+    "test-connection": "ts-node src/scripts/test-connection.ts"
   },
   "dependencies": {
+    "@solana/spl-token": "^0.4.12",
     "@solana/web3.js": "^1.98.0",
     "axios": "^1.7.9",
     "cors": "^2.8.5",

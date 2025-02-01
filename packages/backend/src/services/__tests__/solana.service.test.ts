@@ -1,7 +1,7 @@
 import { SolanaService } from '../solana.service';
 import { AppError } from '../../types';
 import axios from 'axios';
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 
 // Mock external dependencies
 jest.mock('axios');
@@ -95,6 +95,47 @@ describe('SolanaService', () => {
       const result = await service.getWalletData(validAddress);
       expect(result).toEqual(mockData);
       expect(mockAxios.get).not.toHaveBeenCalled();
+    });
+
+    it('should fetch wallet data successfully', async () => {
+      const mockAddress = '6SdbvU6b7nMYf4sbsgghQ8sxsSS7pmqN8qUaDhi5N9RN';
+      const mockBalance = 5000000000; // 5 SOL
+
+      (Connection.prototype.getBalance as jest.Mock).mockResolvedValue(mockBalance);
+      (Connection.prototype.getParsedTokenAccountsByOwner as jest.Mock).mockResolvedValue({
+        value: [{
+          account: {
+            data: {
+              parsed: {
+                info: {
+                  tokenAmount: {
+                    decimals: 0,
+                    amount: "1"
+                  }
+                }
+              }
+            }
+          }
+        }]
+      });
+
+      const result = await service.getWalletData(mockAddress);
+
+      expect(result).toEqual({
+        address: mockAddress,
+        balance: 5,
+        nftCount: 1,
+        transactionCount: 0,
+        lastActivity: undefined
+      });
+    });
+
+    it('should handle invalid wallet addresses', async () => {
+      const invalidAddress = 'invalid-address';
+      
+      await expect(service.getWalletData(invalidAddress))
+        .rejects
+        .toThrow('Failed to fetch wallet data');
     });
   });
 }); 
