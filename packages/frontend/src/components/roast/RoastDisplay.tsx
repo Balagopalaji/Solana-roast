@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { RoastResponse } from '../../types/roast';
 import { Toast } from '../common/Toast';
 import { RoastMeme } from './RoastMeme';
+import { downloadImage } from '../../utils/image';
 
 interface RoastDisplayProps {
   roastData: RoastResponse | null;
@@ -56,10 +57,44 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
         url: window.location.href
       });
     } catch (err) {
-      // Fallback for browsers that don't support share
+      // Fallback to copy if share not supported
       handleCopy();
     }
   }, [roastData?.roast, handleCopy]);
+
+  const handleDownload = async () => {
+    if (!roastData?.meme_url) {
+      setToastMessage('No meme available to download');
+      return;
+    }
+    
+    const filename = `solana-roast-${roastData.wallet?.address.slice(0, 8)}`;
+    const success = await downloadImage(roastData.meme_url, { filename });
+    setToastMessage(success ? 'Meme downloaded successfully! 🎉' : 'Failed to download meme');
+  };
+
+  const handleTwitterShare = async () => {
+    if (!roastData?.roast) return;
+    
+    const tweetText = encodeURIComponent(roastData.roast);
+    const url = encodeURIComponent(window.location.href);
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${url}`;
+    
+    // Open Twitter in new window
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (!roastData) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
@@ -87,49 +122,37 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
 
         {/* Content Area */}
         <div className="p-4">
-          {loading && (
-            <div className="flex items-center justify-center p-8">
-              <span className="animate-pulse">Analyzing wallet data...</span>
-            </div>
-          )}
+          <div className="bg-win95-gray shadow-win95-out p-4">
+            <p className="text-lg mb-4">{roastData.roast}</p>
+            <RoastMeme roastData={roastData} />
+          </div>
 
-          {error && (
-            <div className="bg-red-100 border-2 border-win95-gray-darker p-4 mb-4">
-              <div className="flex items-center">
-                <span className="text-red-600 mr-2">❌</span>
-                <p className="text-red-700">
-                  {error.includes('Failed to fetch') 
-                    ? 'Server connection error. Please try again.' 
-                    : error}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {roastData && !loading && (
-            <div className="space-y-4">
-              <div className="bg-white border-2 border-win95-gray-darker p-4 mb-4">
-                <p className="text-lg">{roastData.roast}</p>
-              </div>
-              
-              <RoastMeme roastData={roastData} />
-
-              <div className="flex justify-end gap-2">
-                <button 
-                  onClick={handleCopy}
-                  className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
-                >
-                  Copy
-                </button>
-                <button 
-                  onClick={handleShare}
-                  className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
-                >
-                  Share
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <button 
+              onClick={handleDownload}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+            >
+              💾 Save Meme
+            </button>
+            <button 
+              onClick={handleCopy}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+            >
+              📋 Copy
+            </button>
+            <button 
+              onClick={handleShare}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+            >
+              📤 Share
+            </button>
+            <button 
+              onClick={handleTwitterShare}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+            >
+              🐦 Tweet
+            </button>
+          </div>
         </div>
       </div>
       {toastMessage && (

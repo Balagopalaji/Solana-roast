@@ -9,7 +9,12 @@ function App() {
   return (
     <ErrorBoundary>
       <WalletProvider>
-        <Router>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />

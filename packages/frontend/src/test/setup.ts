@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { cleanup } from '@testing-library/react';
-import { afterEach } from 'vitest';
+import { afterEach } from '@jest/globals';
 
 // Mock clipboard API
 Object.defineProperty(window.navigator, 'clipboard', {

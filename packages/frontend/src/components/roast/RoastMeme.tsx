@@ -9,12 +9,8 @@ export const RoastMeme: React.FC<RoastMemeProps> = ({ roastData }) => {
   return (
     <div className="relative w-full bg-win95-gray border-2 border-win95-gray-darker my-4">
       {/* Windows 95 title bar */}
-      <div className="bg-win95-blue text-white px-2 py-1 flex justify-between items-center">
+      <div className="bg-win95-blue text-white px-2 py-1">
         <span>🔥 Your Meme Is Ready</span>
-        <div className="flex gap-1">
-          <button className="px-2 bg-win95-gray hover:bg-win95-gray-light">_</button>
-          <button className="px-2 bg-win95-gray hover:bg-win95-gray-light">X</button>
-        </div>
       </div>
 
       {/* Meme content */}

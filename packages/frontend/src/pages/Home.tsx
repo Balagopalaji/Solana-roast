@@ -1,13 +1,18 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export const Home: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
-    <div className="text-center">
-      <h1 className="text-4xl font-bold mb-4">Welcome to SolanaRoast.lol</h1>
-      <p className="text-lg mb-8">Get your Solana wallet roasted in style!</p>
-      <div className="bg-win95-gray p-4 shadow-win95-out max-w-md mx-auto">
-        <p className="mb-4">Click "Get Roasted" to start!</p>
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">SolanaRoast.lol</h1>
+      <button
+        onClick={() => navigate('/roast')}
+        className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+      >
+        Get Roasted
+      </button>
     </div>
   );
 }; 
