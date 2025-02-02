@@ -75,4 +75,4 @@ interface ShareResult {
 - Rate limiting implementation
 - Content validation
 - Safe image handling
-- URL parameter sanitization 
+- URL parameter sanitization
