@@ -15,5 +15,9 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@types/html2canvas": "^1.0.0",
+    "html2canvas": "^1.4.1"
   }
 }
