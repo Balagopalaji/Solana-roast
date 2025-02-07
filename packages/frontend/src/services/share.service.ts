@@ -1,6 +1,7 @@
 import { RoastResponse } from '../types/roast';
 import { metrics } from './metrics.service';
 import { AppError, ErrorCategory } from '../types/errors';
+import { screenshotService } from './screenshot.service';
 
 export interface ShareConfig {
   baseUrl: string;
@@ -23,6 +24,8 @@ export interface ShareOptions {
   url?: string;
   title?: string;
   type?: 'native' | 'twitter' | 'clipboard';
+  imageBlob?: Blob;
+  imageUrl?: string;
 }
 
 export interface ShareResult {
@@ -185,6 +188,48 @@ class ShareService {
     // This will be used for social media sharing
     // TODO: Implement image generation
     return '';
+  }
+
+  async shareWithScreenshot(options: ShareOptions): Promise<ShareResult> {
+    try {
+      const roastElement = document.querySelector('.roast-container');
+      if (!roastElement) {
+        throw new Error('Roast element not found');
+      }
+
+      const screenshot = await screenshotService.captureElement({
+        element: roastElement as HTMLElement,
+        includeWatermark: true
+      });
+
+      // For Twitter, we'll use the blob
+      if (options.type === 'twitter') {
+        return this.twitterShare({
+          ...options,
+          imageBlob: screenshot.blob
+        });
+      }
+
+      // For native share, we'll use the dataUrl
+      return this.nativeShare({
+        ...options,
+        imageUrl: screenshot.dataUrl
+      });
+    } catch (error) {
+      // Use existing error handling
+      const appError = this.wrapError(error);
+      metrics.trackError({
+        error: appError,
+        context: 'share_service',
+        metadata: { type: options.type }
+      });
+
+      return {
+        success: false,
+        method: 'failed',
+        error: new Error(this.getFriendlyErrorMessage(appError))
+      };
+    }
   }
 }
 
