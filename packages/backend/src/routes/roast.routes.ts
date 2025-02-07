@@ -6,6 +6,7 @@ import { SolanaService } from '../services/solana.service';
 import logger from '../utils/logger';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { environment } from '../config/environment';
+import { Request, Response, NextFunction } from 'express';
 
 const router = Router();
 
@@ -21,15 +22,15 @@ const roastLimiter = rateLimit({
 });
 
 // Main roast generation endpoint
-router.post('/', roastLimiter, async (req, res, next) => {
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { walletAddress } = req.body;
-    logger.info(`Received roast request for wallet: ${walletAddress}`);
 
     if (!walletAddress) {
-      logger.warn('Missing wallet address in request');
       throw new AppError(400, 'error', 'Wallet address is required');
     }
+
+    logger.info('Received roast request for wallet:', walletAddress);
 
     if (!solanaServiceInstance.isValidWalletAddress(walletAddress)) {
       logger.warn(`Invalid wallet address received: ${walletAddress}`);
@@ -37,18 +38,16 @@ router.post('/', roastLimiter, async (req, res, next) => {
     }
 
     logger.info(`Generating roast for wallet: ${walletAddress}`);
-    const roastData = await roastService.generateRoast(walletAddress);
+    const roastResponse = await roastService.generateRoast(walletAddress);
     
     logger.info('Roast generated successfully');
-    res.status(200).json({
-      status: 'success',
-      data: roastData
-    });
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    
+    res.status(200).json(roastResponse);
   } catch (error) {
-    logger.error('Error in roast generation:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    logger.error('Error in roast generation:', error);
     next(error);
   }
 });

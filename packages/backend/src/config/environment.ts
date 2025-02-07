@@ -31,7 +31,7 @@ if (!apiKey) {
 // Export environment configuration
 export const environment = {
   nodeEnv: process.env.NODE_ENV || 'development',
-  port: parseInt(process.env.PORT || '3000', 10),
+  port: process.env.PORT || 3000,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW || '900000', 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
@@ -41,8 +41,11 @@ export const environment = {
     solscanApiKey: process.env.SOLSCAN_API_KEY
   },
   imgflip: {
-    username: process.env.IMGFLIP_USERNAME || 'your_default_username',
-    password: process.env.IMGFLIP_PASSWORD || 'your_default_password'
+    username: process.env.IMGFLIP_USERNAME || '',
+    password: process.env.IMGFLIP_PASSWORD || ''
+  },
+  fallbacks: {
+    memeUrl: 'https://i.imgflip.com/default-meme.jpg' // Add a default fallback meme URL
   }
 };
 

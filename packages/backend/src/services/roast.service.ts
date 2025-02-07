@@ -3,19 +3,30 @@ import { SolanaService } from './solana.service';
 import { RoastResponse, WalletData } from '../types';
 import { imgflipService } from './imgflip.service';
 import logger from '../utils/logger';
+import { environment } from '../config/environment';
 
 export class RoastService {
   constructor(private solanaService: SolanaService) {}
 
   async generateRoast(walletAddress: string): Promise<RoastResponse> {
     try {
+      // Add connection test
+      logger.info('Testing backend connectivity...');
+      try {
+        await fetch('http://localhost:3000/health');
+        logger.info('Backend connectivity test passed');
+      } catch (error) {
+        logger.error('Backend connectivity test failed:', error);
+        throw new Error('Backend service unavailable');
+      }
+
       logger.info('Starting roast generation for wallet:', walletAddress);
       
       // 1. Get wallet data
       const walletData = await this.solanaService.getWalletData(walletAddress);
       logger.info('Wallet data retrieved:', walletData);
 
-      // 2. Generate roast and meme text in one call
+      // 2. Generate roast text
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
@@ -69,33 +80,36 @@ export class RoastService {
       }
 
       try {
-        const response = JSON.parse(responseText) as RoastResponse;
+        const response = JSON.parse(responseText);
         
-        // Validate all required fields exist
+        // Validate OpenAI response format
         if (!response.roast || !response.meme_top_text || !response.meme_bottom_text) {
-          throw new Error('Missing required fields in response');
+          throw new Error('Missing required fields in OpenAI response');
         }
 
-        // Generate meme image
-        logger.info('Generating meme with text:', { 
-          top: response.meme_top_text, 
-          bottom: response.meme_bottom_text 
-        });
-        
-        const memeUrl = await imgflipService.generateMeme(
-          response.meme_top_text,
-          response.meme_bottom_text,
-          response.roast
-        );
-
-        logger.info('Meme generated successfully:', memeUrl);
+        // 3. Generate meme image (with fallback)
+        let memeUrl = '';
+        try {
+          memeUrl = await imgflipService.generateMeme(
+            response.meme_top_text,
+            response.meme_bottom_text,
+            response.roast
+          );
+          logger.info('Meme generated successfully:', memeUrl);
+        } catch (memeError) {
+          logger.warn('Meme generation failed:', memeError);
+          // Use a fallback meme or continue without meme
+          memeUrl = environment.fallbacks.memeUrl || '';
+        }
 
         return {
-          ...response,
+          roast: response.roast,
+          meme_url: memeUrl,
           wallet: walletData,
-          meme_url: memeUrl
+          meme_top_text: response.meme_top_text,
+          meme_bottom_text: response.meme_bottom_text
         };
-      } catch (error) {
+      } catch (parseError) {
         logger.error('Failed to parse OpenAI response:', responseText);
         throw new Error('Invalid response format from OpenAI');
       }

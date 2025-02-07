@@ -13,8 +13,9 @@ const app = express();
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: environment.corsOrigin,
-  credentials: true
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
 }));
 app.use(morgan('dev'));
 app.use(express.json());
@@ -25,8 +26,8 @@ app.use('/roast', roastRoutes);
 app.use('/test-connection', roastRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+app.get('/health', (_, res) => {
+  res.json({ status: 'ok' });
 });
 
 // Error handling

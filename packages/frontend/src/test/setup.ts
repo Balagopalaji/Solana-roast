@@ -1,40 +1,31 @@
 import '@testing-library/jest-dom';
 import { cleanup } from '@testing-library/react';
-import { afterEach } from '@jest/globals';
+import { afterEach, vi } from 'vitest';
 
-// Mock clipboard API
-Object.defineProperty(window.navigator, 'clipboard', {
-  value: {
-    writeText: jest.fn().mockImplementation(() => Promise.resolve()),
-  },
-  writable: true,
-  configurable: true
+// Basic mocks
+const setupGlobalMocks = () => {
+  // Mock navigator APIs
+  Object.assign(navigator, {
+    clipboard: {
+      writeText: vi.fn().mockResolvedValue(undefined)
+    },
+    share: vi.fn().mockResolvedValue(undefined)
+  });
+
+  // Mock window APIs
+  vi.stubGlobal('open', vi.fn());
+
+  // Mock URL APIs
+  global.URL.createObjectURL = vi.fn(() => 'mock-url');
+  global.URL.revokeObjectURL = vi.fn();
+};
+
+beforeEach(() => {
+  setupGlobalMocks();
 });
 
-// Mock Web Share API
-Object.defineProperty(window.navigator, 'share', {
-  value: jest.fn().mockImplementation(() => Promise.resolve()),
-  writable: true,
-  configurable: true
-});
-
-// Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  configurable: true,
-  value: jest.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
-
-// Cleanup after each test
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });

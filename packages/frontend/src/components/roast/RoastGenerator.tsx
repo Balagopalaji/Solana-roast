@@ -5,6 +5,7 @@ import type { RoastResponse } from '../../types/roast';
 import { Button, Window } from '../ui';
 import { logger } from '../../utils/logger';
 import { validateWalletAddress } from '../../utils/validation';
+import { metrics } from '../../services/metrics.service';
 
 export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
   const [loading, setLoading] = useState(false);
@@ -13,6 +14,12 @@ export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
 
   const handleGenerateRoast = async () => {
     try {
+      metrics.trackEvent({
+        category: 'roast',
+        action: 'generate_start',
+        label: walletAddress
+      });
+
       // Clear previous state
       setLoading(true);
       setError(null);
@@ -31,7 +38,19 @@ export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
       
       const response = await roastService.generateRoast({ walletAddress });
       setRoastData(response);
+
+      metrics.trackEvent({
+        category: 'roast',
+        action: 'generate_success',
+        value: response.duration
+      });
     } catch (error) {
+      metrics.trackError({
+        error,
+        context: 'generate_roast',
+        metadata: { wallet: walletAddress }
+      });
+      
       logger.error('Failed to generate roast:', {
         error,
         walletAddress,

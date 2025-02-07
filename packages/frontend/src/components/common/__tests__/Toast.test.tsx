@@ -1,14 +1,14 @@
-import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { Toast } from '../Toast';
+import { vi } from 'vitest';
 
 describe('Toast', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('renders message correctly', () => {
@@ -17,11 +17,11 @@ describe('Toast', () => {
   });
 
   it('calls onClose after duration', () => {
-    const onClose = jest.fn();
-    render(<Toast message="Test" duration={1000} onClose={onClose} />);
-    
+    const onClose = vi.fn();
+    render(<Toast message="Test message" onClose={onClose} duration={3000} />);
+
     act(() => {
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(3000);
     });
 
     expect(onClose).toHaveBeenCalled();
