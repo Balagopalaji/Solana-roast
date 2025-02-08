@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { Button } from '@react95/core';
 import { shareService } from '../../services/share.service';
 import { metrics } from '../../services/metrics.service';
 
@@ -9,8 +7,6 @@ interface ShareButtonsProps {
 }
 
 export function ShareButtons({ roastText, url }: ShareButtonsProps) {
-  const [isCapturing, setIsCapturing] = useState(false);
-
   const handleShare = async (type: 'native' | 'twitter' | 'clipboard') => {
     try {
       metrics.trackEvent({
@@ -19,85 +15,38 @@ export function ShareButtons({ roastText, url }: ShareButtonsProps) {
         label: type
       });
 
-      // Use screenshot for social sharing
-      if (type === 'twitter' || type === 'native') {
-        setIsCapturing(true);
-        await shareService.shareWithScreenshot({
-          text: roastText,
-          url,
-          type
-        });
-      } else {
-        // Use regular sharing for clipboard
-        await shareService.shareRoast({
-          text: roastText,
-          url,
-          type
-        });
-      }
+      await shareService.shareRoast({
+        text: roastText,
+        url,
+        type
+      });
     } catch (error) {
       console.error('Share failed:', error);
-    } finally {
-      setIsCapturing(false);
     }
   };
 
   return (
-    <div className="share-buttons flex gap-2">
-      <Button 
+    <div className="flex gap-2 mt-4">
+      <button 
         onClick={() => handleShare('native')}
-        disabled={isCapturing}
+        className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
       >
-        {isCapturing ? '📸 Capturing...' : '💾 Save Meme'}
-      </Button>
+        💾 Save Meme
+      </button>
 
-      <Button
+      <button
         onClick={() => handleShare('clipboard')}
-        disabled={isCapturing}
+        className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
       >
         📋 Copy
-      </Button>
+      </button>
 
-      <Button
+      <button
         onClick={() => handleShare('twitter')}
-        disabled={isCapturing}
+        className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
       >
-        {isCapturing ? '📸 Capturing...' : '🐦 Tweet'}
-      </Button>
-
-      {isCapturing && (
-        <div className="capture-overlay">
-          <div className="capture-message">
-            Capturing your roast...
-          </div>
-        </div>
-      )}
-
-      <style jsx>{`
-        .share-buttons {
-          display: flex;
-          gap: 8px;
-          margin-top: 16px;
-        }
-        .capture-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(192, 192, 192, 0.8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-        }
-        .capture-message {
-          background: #fff;
-          border: 2px solid #000;
-          padding: 16px;
-          font-family: "Microsoft Sans Serif";
-        }
-      `}</style>
+        🐦 Tweet
+      </button>
     </div>
   );
 } 
