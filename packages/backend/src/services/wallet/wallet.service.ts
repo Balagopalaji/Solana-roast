@@ -1,61 +1,43 @@
 import { WalletProvider, WalletData, TokenData, NFTData } from './types';
-import { AlchemyProvider } from './providers/alchemy';
 import { SolanaRPCProvider } from './providers/solana-rpc';
 import logger from '../../utils/logger';
 
 export class WalletService {
-  private providers: WalletProvider[];
+  private provider: WalletProvider;
   
   constructor() {
-    this.providers = [
-      new AlchemyProvider(),     // Primary provider
-      new SolanaRPCProvider()    // Fallback provider
-    ];
+    this.provider = new SolanaRPCProvider();
   }
 
   async getWalletData(address: string): Promise<WalletData> {
-    let lastError: Error | null = null;
-
-    for (const provider of this.providers) {
-      try {
-        const data = await provider.getWalletData(address);
-        logger.debug('Wallet data retrieved successfully', {
-          provider: provider.constructor.name,
-          address
-        });
-        return data;
-      } catch (error) {
-        lastError = error as Error;
-        logger.warn('Provider failed, trying next', {
-          provider: provider.constructor.name,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-        continue;
-      }
+    try {
+      const data = await this.provider.getWalletData(address);
+      logger.debug('Wallet data retrieved successfully', {
+        provider: this.provider.constructor.name,
+        address
+      });
+      return data;
+    } catch (error) {
+      logger.error('Failed to get wallet data:', error);
+      throw error;
     }
-
-    throw lastError || new Error('All providers failed');
   }
 
   async getTokens(address: string): Promise<TokenData[]> {
-    for (const provider of this.providers) {
-      try {
-        return await provider.getTokens(address);
-      } catch (error) {
-        continue;
-      }
+    try {
+      return await this.provider.getTokens(address);
+    } catch (error) {
+      logger.error('Failed to get tokens:', error);
+      return [];
     }
-    return [];
   }
 
   async getNFTs(address: string): Promise<NFTData[]> {
-    for (const provider of this.providers) {
-      try {
-        return await provider.getNFTs(address);
-      } catch (error) {
-        continue;
-      }
+    try {
+      return await this.provider.getNFTs(address);
+    } catch (error) {
+      logger.error('Failed to get NFTs:', error);
+      return [];
     }
-    return [];
   }
 } 

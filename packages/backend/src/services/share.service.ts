@@ -1,38 +1,34 @@
-import { firebaseService } from './firebase.service';
 import logger from '../utils/logger';
 
 interface ShareOptions {
-  roastText: string;
-  memeUrl: string;
-  walletAddress: string;
+  text: string;
+  url?: string;
+  type: 'native' | 'twitter' | 'clipboard';
 }
 
 class ShareService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = process.env.FRONTEND_URL || 'https://solanaroast.lol';
-  }
-
-  async createShareableLink(options: ShareOptions): Promise<string> {
+  async shareRoast(options: ShareOptions): Promise<void> {
     try {
-      // Store in Firebase and get ID
-      const shareId = await firebaseService.storeRoast({
-        roast: options.roastText,
-        memeUrl: options.memeUrl,
-        walletAddress: options.walletAddress
-      });
-
-      // Generate shareable URL
-      return `${this.baseUrl}/share/${shareId}`;
+      switch (options.type) {
+        case 'native':
+          // Handle direct download
+          return;
+        case 'clipboard':
+          await navigator.clipboard.writeText(options.text);
+          return;
+        case 'twitter':
+          const tweetText = options.url 
+            ? `${options.text}\n${options.url}`
+            : options.text;
+          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`);
+          return;
+        default:
+          throw new Error(`Unsupported share type: ${options.type}`);
+      }
     } catch (error) {
-      logger.error('Failed to create shareable link:', error);
+      logger.error('Share failed:', error);
       throw error;
     }
-  }
-
-  async getShareDetails(shareId: string) {
-    return firebaseService.getRoast(shareId);
   }
 }
 
