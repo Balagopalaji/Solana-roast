@@ -1,7 +1,7 @@
 import { FEATURES } from '../config/features';
 
 type MetricEvent = {
-  category: 'roast' | 'share' | 'wallet' | 'error';
+  category: 'roast' | 'share' | 'wallet' | 'error' | 'performance';
   action: string;
   label?: string;
   value?: number;

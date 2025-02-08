@@ -106,8 +106,8 @@ Note: Use the provided roast examples and prompt structure from the original spe
 // Social features prompt:
 "Add social sharing features including:
 1. Tweet generation functionality
-2. Screenshot capability
-3. Watermark generation
+2. Direct meme sharing
+3. Native share integration
 4. Share button implementation"
 ```
 

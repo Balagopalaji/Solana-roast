@@ -1,7 +1,5 @@
-import { RoastResponse } from '../types/roast';
 import { metrics } from './metrics.service';
 import { AppError, ErrorCategory } from '../types/errors';
-import { screenshotService } from './screenshot.service';
 
 export interface ShareConfig {
   baseUrl: string;
@@ -11,7 +9,6 @@ export interface ShareConfig {
     twitter: boolean;
     clipboard: boolean;
     download: boolean;
-    screenshot?: boolean;
   };
   fallbacks: {
     primary: 'clipboard' | 'download';
@@ -24,8 +21,7 @@ export interface ShareOptions {
   url?: string;
   title?: string;
   type?: 'native' | 'twitter' | 'clipboard';
-  imageBlob?: Blob;
-  imageUrl?: string;
+  image_url?: string;
 }
 
 export interface ShareResult {
@@ -63,7 +59,15 @@ class ShareService {
           result = await this.nativeShare({ text, url, title });
           break;
         case 'twitter':
-          result = await this.twitterShare({ text, url });
+          if (options.image_url) {
+            try {
+              result = await this.twitterShareWithMedia(options);
+            } catch (error) {
+              result = await this.twitterShare(options);
+            }
+          } else {
+            result = await this.twitterShare(options);
+          }
           break;
         default:
           result = await this.clipboardShare(text);
@@ -170,10 +174,10 @@ class ShareService {
     }
   }
 
-  private async twitterShare({ text, url }: ShareOptions): Promise<ShareResult> {
+  private async twitterShare(options: ShareOptions): Promise<ShareResult> {
     try {
-      const tweetText = encodeURIComponent(text);
-      const tweetUrl = url ? `&url=${encodeURIComponent(url)}` : '';
+      const tweetText = encodeURIComponent(options.text);
+      const tweetUrl = options.url ? `&url=${encodeURIComponent(options.url)}` : '';
       const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}${tweetUrl}`;
       
       window.open(twitterUrl, '_blank', 'noopener,noreferrer');
@@ -183,52 +187,26 @@ class ShareService {
     }
   }
 
-  async generateShareImage(roastData: RoastResponse): Promise<string> {
-    // Implementation for generating shareable image
-    // This will be used for social media sharing
-    // TODO: Implement image generation
-    return '';
-  }
-
-  async shareWithScreenshot(options: ShareOptions): Promise<ShareResult> {
+  private async twitterShareWithMedia(options: ShareOptions): Promise<ShareResult> {
     try {
-      const roastElement = document.querySelector('.roast-container');
-      if (!roastElement) {
-        throw new Error('Roast element not found');
-      }
-
-      const screenshot = await screenshotService.captureElement({
-        element: roastElement as HTMLElement,
-        includeWatermark: true
+      const response = await fetch('/api/share/twitter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: options.text,
+          image_url: options.image_url
+        })
       });
 
-      // For Twitter, we'll use the blob
-      if (options.type === 'twitter') {
-        return this.twitterShare({
-          ...options,
-          imageBlob: screenshot.blob
-        });
+      if (!response.ok) {
+        throw new Error('Failed to share on Twitter');
       }
 
-      // For native share, we'll use the dataUrl
-      return this.nativeShare({
-        ...options,
-        imageUrl: screenshot.dataUrl
-      });
+      return { success: true, method: 'twitter' };
     } catch (error) {
-      // Use existing error handling
-      const appError = this.wrapError(error);
-      metrics.trackError({
-        error: appError,
-        context: 'share_service',
-        metadata: { type: options.type }
-      });
-
-      return {
-        success: false,
-        method: 'failed',
-        error: new Error(this.getFriendlyErrorMessage(appError))
-      };
+      throw new Error('Failed to share on Twitter with media');
     }
   }
 }
