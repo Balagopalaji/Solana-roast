@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { RoastDisplay } from '../RoastDisplay';
 import { vi } from 'vitest';

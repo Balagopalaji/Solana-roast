@@ -48,9 +48,15 @@ export const ShareDropdown: React.FC<ShareDropdownProps> = ({ roastData, classNa
   const handleTweet = async () => {
     setLoading(true);
     try {
-      const result = await shareService.shareTwitter({ roastData, type: 'twitter' });
+      const result = await shareService.shareRoast({
+        text: roastData.roast,
+        url: window.location.href,
+        type: 'twitter',
+        image_url: roastData.meme_url // Optional: include meme image if available
+      });
+      
       if (!result.success) {
-        setToastMessage(result.error || 'Failed to share to Twitter');
+        setToastMessage(result.error?.message || 'Failed to share to Twitter');
         setShowToast(true);
       }
     } catch (error) {
@@ -115,7 +121,8 @@ export const ShareDropdown: React.FC<ShareDropdownProps> = ({ roastData, classNa
             🐦 Share on Twitter
           </button>
           {/* Only show if native sharing is available */}
-          {navigator.share && (
+          {typeof navigator !== 'undefined' && 
+           'share' in navigator && (
             <button
               onClick={handleNativeShare}
               className="w-full px-4 py-2 text-left hover:bg-win95-gray-light"

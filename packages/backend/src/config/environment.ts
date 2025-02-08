@@ -12,7 +12,12 @@ export function validateEnv() {
     'PORT',
     'CORS_ORIGIN',
     'OPENAI_API_KEY',
-    'SOLANA_RPC_URL'
+    'SOLANA_RPC_URL',
+    // Add if Twitter is required:
+    // 'TWITTER_API_KEY',
+    // 'TWITTER_API_SECRET',
+    // 'TWITTER_ACCESS_TOKEN',
+    // 'TWITTER_ACCESS_SECRET'
   ];
 
   for (const name of required) {
@@ -46,6 +51,12 @@ export const environment = {
   },
   fallbacks: {
     memeUrl: 'https://i.imgflip.com/default-meme.jpg' // Add a default fallback meme URL
+  },
+  twitter: {
+    apiKey: process.env.TWITTER_API_KEY,
+    apiSecret: process.env.TWITTER_API_SECRET,
+    accessToken: process.env.TWITTER_ACCESS_TOKEN,
+    accessSecret: process.env.TWITTER_ACCESS_SECRET
   }
 };
 

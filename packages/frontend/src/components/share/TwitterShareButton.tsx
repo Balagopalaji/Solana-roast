@@ -16,10 +16,15 @@ export const TwitterShareButton: React.FC<TwitterShareButtonProps> = ({ roastDat
   const handleShare = async () => {
     setLoading(true);
     try {
-      const result = await shareService.shareTwitter({ roastData, type: 'twitter' });
+      const result = await shareService.shareRoast({
+        text: roastData.roast,
+        url: window.location.href,
+        type: 'twitter',
+        image_url: roastData.meme_url // Optional: include meme image if available
+      });
       
       if (!result.success) {
-        setToastMessage(result.error || 'Failed to share to Twitter');
+        setToastMessage(result.error?.message || 'Failed to share to Twitter');
         setShowToast(true);
       }
     } catch (error) {

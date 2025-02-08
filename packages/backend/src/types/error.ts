@@ -1,13 +1,13 @@
-export enum ErrorCode {
+export enum ErrorType {
   VALIDATION_ERROR = 'VALIDATION_ERROR',
-  OPENAI_ERROR = 'OPENAI_ERROR',
-  SOLANA_ERROR = 'SOLANA_ERROR',
-  FIREBASE_ERROR = 'FIREBASE_ERROR',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+  AUTH_ERROR = 'AUTH_ERROR',
+  API_ERROR = 'API_ERROR',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  INTERNAL_ERROR = 'INTERNAL_ERROR'
 }
 
 export interface ApiError {
-  code: ErrorCode;
+  code: ErrorType;
   message: string;
   details?: unknown;
   timestamp: string;
@@ -16,7 +16,7 @@ export interface ApiError {
 export class AppError extends Error {
   constructor(
     public statusCode: number,
-    public code: ErrorCode,
+    public code: ErrorType,
     message: string,
     public details?: unknown
   ) {

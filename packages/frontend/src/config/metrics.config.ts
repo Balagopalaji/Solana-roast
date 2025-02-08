@@ -1,3 +1,5 @@
+import { FEATURES } from './features';
+
 export const METRICS_CONFIG = {
   MIXPANEL_TOKEN: import.meta.env.VITE_MIXPANEL_TOKEN,
   ENVIRONMENT: import.meta.env.MODE,

@@ -12,7 +12,15 @@ describe('OpenAIService', () => {
 
   describe('generateRoast', () => {
     it('should throw error for invalid wallet address', async () => {
-      await expect(service.generateRoast('invalid-address'))
+      const invalidWalletData: WalletData = {
+        address: 'invalid-address',
+        balance: 0,
+        transactionCount: 0,
+        nftCount: 0,
+        lastActivity: new Date()
+      };
+
+      await expect(service.generateRoast(invalidWalletData))
         .rejects
         .toThrow(AppError);
     });
@@ -24,10 +32,18 @@ describe('OpenAIService', () => {
         meme_bottom_text: 'bottom'
       };
 
-      // @ts-ignore - accessing private cache
-      service.cache.set('DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y', mockResponse);
+      const walletData: WalletData = {
+        address: 'DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y',
+        balance: 1.5,
+        transactionCount: 10,
+        nftCount: 2,
+        lastActivity: new Date()
+      };
 
-      const result = await service.generateRoast('DRtqaYHyXFPVD5hzKHk3f9JF5GwEjAHgtqzxVHnM8u9Y');
+      // @ts-ignore - accessing private cache
+      service.cache.set(walletData.address, mockResponse);
+
+      const result = await service.generateRoast(walletData);
       expect(result).toEqual(mockResponse);
     });
 

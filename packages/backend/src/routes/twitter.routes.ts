@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { twitterService } from '../services/twitter.service';
 import multer from 'multer';
-import { Request } from 'express';
 import logger from '../utils/logger';
+import { Multer } from 'multer';
 
 // Extend Express Request type to include file from multer
 interface MulterRequest extends Request {

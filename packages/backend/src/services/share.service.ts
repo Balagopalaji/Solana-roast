@@ -1,10 +1,17 @@
-import { firebaseService } from './firebase.service';
+import { cacheService } from './cache.service';
 import logger from '../utils/logger';
 
 interface ShareOptions {
   roastText: string;
   memeUrl: string;
   walletAddress: string;
+}
+
+interface ShareData {
+  roast: string;
+  memeUrl: string;
+  walletAddress: string;
+  createdAt: Date;
 }
 
 class ShareService {
@@ -16,12 +23,18 @@ class ShareService {
 
   async createShareableLink(options: ShareOptions): Promise<string> {
     try {
-      // Store in Firebase and get ID
-      const shareId = await firebaseService.storeRoast({
+      // Generate a unique ID
+      const shareId = crypto.randomUUID();
+      
+      // Store in cache
+      const shareData: ShareData = {
         roast: options.roastText,
         memeUrl: options.memeUrl,
-        walletAddress: options.walletAddress
-      });
+        walletAddress: options.walletAddress,
+        createdAt: new Date()
+      };
+      
+      cacheService.set(shareId, shareData, 24 * 60 * 60); // 24 hour TTL
 
       // Generate shareable URL
       return `${this.baseUrl}/share/${shareId}`;
@@ -32,7 +45,7 @@ class ShareService {
   }
 
   async getShareDetails(shareId: string) {
-    return firebaseService.getRoast(shareId);
+    return cacheService.get<ShareData>(shareId);
   }
 }
 

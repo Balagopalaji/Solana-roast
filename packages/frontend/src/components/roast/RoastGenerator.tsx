@@ -36,17 +36,17 @@ export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
         timestamp: new Date().toISOString()
       });
       
-      const response = await roastService.generateRoast({ walletAddress });
+      const response = await roastService.generateRoast(walletAddress);
       setRoastData(response);
 
       metrics.trackEvent({
         category: 'roast',
         action: 'generate_success',
-        value: response.duration
+        label: walletAddress
       });
     } catch (error) {
       metrics.trackError({
-        error,
+        error: error instanceof Error ? error : new Error('Unknown error'),
         context: 'generate_roast',
         metadata: { wallet: walletAddress }
       });
@@ -57,7 +57,6 @@ export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
         timestamp: new Date().toISOString()
       });
       
-      // Improved error messages
       if (error instanceof Error) {
         if (error.message.includes('429')) {
           setError('Too many requests. Please try again in a moment.');

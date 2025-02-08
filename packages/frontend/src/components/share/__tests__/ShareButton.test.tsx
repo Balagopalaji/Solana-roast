@@ -3,13 +3,11 @@ import { ShareButton } from '../ShareButton';
 import { vi } from 'vitest';
 
 describe('ShareButton', () => {
-  const mockShareData = {
-    text: "Test text",
-    roastData: {
-      roast: "Test roast",
-      wallet: {
-        address: "test-address"
-      }
+  const mockRoastData = {
+    roast: "Test roast",
+    meme_url: "https://example.com/meme.jpg",
+    wallet: {
+      address: "test-address"
     }
   };
 
@@ -24,7 +22,7 @@ describe('ShareButton', () => {
     Object.assign(navigator, { share: mockShare });
 
     const { getByRole, findByText, advanceTimers, userEvent } = renderWithTimers(
-      <ShareButton {...mockShareData} />
+      <ShareButton roastData={mockRoastData} />
     );
 
     const shareButton = getByRole('button', { name: /share/i });

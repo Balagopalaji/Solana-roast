@@ -3,13 +3,11 @@ import { TwitterShareButton } from '../TwitterShareButton';
 import { vi } from 'vitest';
 
 describe('TwitterShareButton', () => {
-  const mockTweetData = {
-    text: "Test tweet text",
-    roastData: {
-      roast: "Test roast",
-      wallet: {
-        address: "test-address"
-      }
+  const mockRoastData = {
+    roast: "Test roast",
+    meme_url: "https://example.com/meme.jpg",
+    wallet: {
+      address: "test-address"
     }
   };
 
@@ -24,7 +22,7 @@ describe('TwitterShareButton', () => {
 
   it('handles tweet flow', async () => {
     const { getByRole, userEvent } = renderWithTimers(
-      <TwitterShareButton {...mockTweetData} />
+      <TwitterShareButton roastData={mockRoastData} />
     );
 
     const tweetButton = getByRole('button', { name: /tweet/i });

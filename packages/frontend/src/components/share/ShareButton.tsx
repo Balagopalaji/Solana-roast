@@ -16,12 +16,16 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ roastData, className }
   const handleShare = async () => {
     setLoading(true);
     try {
-      const result = await shareService.shareLink({ roastData, type: 'link' });
+      const result = await shareService.shareRoast({
+        text: roastData.roast,
+        url: window.location.href,
+        type: 'clipboard'  // or 'native' if you want to use the system share dialog
+      });
       
       if (result.success) {
         setToastMessage('Share link copied to clipboard!');
       } else {
-        setToastMessage(result.error || 'Failed to share');
+        setToastMessage(result.error?.message || 'Failed to share');
       }
       
       setShowToast(true);

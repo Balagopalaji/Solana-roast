@@ -1,15 +1,14 @@
-import { AlchemyProvider } from '../providers/alchemy';
 import { SolanaRPCProvider } from '../providers/solana-rpc';
 import { WalletService } from '../wallet.service';
 
 describe('Wallet Providers', () => {
   const testAddress = 'DfiQtKqNupeHDDZzWfqHjDpGfAGKNiZfVGwoBEhYAjZe';
 
-  describe('AlchemyProvider', () => {
-    let provider: AlchemyProvider;
+  describe('SolanaRPCProvider', () => {
+    let provider: SolanaRPCProvider;
 
     beforeEach(() => {
-      provider = new AlchemyProvider();
+      provider = new SolanaRPCProvider();
     });
 
     it('should fetch wallet data', async () => {
@@ -20,14 +19,14 @@ describe('Wallet Providers', () => {
     });
   });
 
-  describe('WalletService Fallback', () => {
+  describe('WalletService', () => {
     let service: WalletService;
 
     beforeEach(() => {
       service = new WalletService();
     });
 
-    it('should fallback to RPC provider if Alchemy fails', async () => {
+    it('should fetch wallet data successfully', async () => {
       const data = await service.getWalletData(testAddress);
       expect(data).toBeDefined();
       expect(data.address).toBe(testAddress);

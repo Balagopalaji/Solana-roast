@@ -39,7 +39,7 @@ export const renderWithTimers = (
   
   return {
     ...utils,
-    advanceTimers: async (ms: number) => {
+    advanceTimers: async (ms = 0) => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(ms);
       });

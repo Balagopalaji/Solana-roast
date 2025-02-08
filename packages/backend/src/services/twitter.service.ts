@@ -3,15 +3,21 @@ import logger from '../utils/logger';
 import { environment } from '../config/environment';
 
 export class TwitterService {
-  private client: TwitterApi;
+  private client: TwitterApi | null = null;
 
   constructor() {
-    this.client = new TwitterApi({
-      appKey: environment.TWITTER_API_KEY,
-      appSecret: environment.TWITTER_API_SECRET,
-      accessToken: environment.TWITTER_ACCESS_TOKEN,
-      accessSecret: environment.TWITTER_ACCESS_SECRET,
-    });
+    const { apiKey, apiSecret, accessToken, accessSecret } = environment.twitter;
+    
+    if (apiKey && apiSecret && accessToken && accessSecret) {
+      this.client = new TwitterApi({
+        appKey: apiKey,
+        appSecret: apiSecret,
+        accessToken: accessToken,
+        accessSecret: accessSecret,
+      });
+    } else {
+      logger.warn('Twitter credentials not fully configured');
+    }
   }
 
   async uploadImageAndTweet(imageBuffer: Buffer, text: string, url: string): Promise<string> {
@@ -43,6 +49,11 @@ export class TwitterService {
   }
 
   async shareWithMedia(text: string, imageUrl: string): Promise<boolean> {
+    if (!this.client) {
+      logger.warn('Twitter service not initialized');
+      return false;
+    }
+
     try {
       // Download image
       const imageResponse = await fetch(imageUrl);
@@ -59,7 +70,7 @@ export class TwitterService {
 
       return true;
     } catch (error) {
-      console.error('Twitter share error:', error);
+      logger.error('Twitter share error:', error);
       return false;
     }
   }

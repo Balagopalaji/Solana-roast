@@ -14,8 +14,12 @@ export class CacheService {
     return this.cache.get(key);
   }
 
+  set<T>(key: string, value: T): boolean;
+  set<T>(key: string, value: T, ttl: number): boolean;
   set<T>(key: string, value: T, ttl?: number): boolean {
-    return this.cache.set(key, value, ttl);
+    return ttl !== undefined 
+      ? this.cache.set(key, value, ttl)
+      : this.cache.set(key, value);
   }
 
   del(key: string): number {

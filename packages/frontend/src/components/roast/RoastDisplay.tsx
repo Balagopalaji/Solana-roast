@@ -147,7 +147,7 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
       </div>
     );
   }
-  if (!roastData || roastData.responseType === 'undefined') {
+  if (!roastData || !roastData.roast) {
     return (
       <div className="bg-win95-gray p-4 shadow-win95-out">
         <p className="text-red-500">⚠️ No roast data available</p>

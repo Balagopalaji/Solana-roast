@@ -3,7 +3,7 @@ import { WalletProvider } from './components/wallet/WalletProvider';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Roast } from './pages/Roast';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function App() {
   return (
