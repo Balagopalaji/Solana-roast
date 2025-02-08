@@ -2,6 +2,7 @@ import express from 'express';
 import { shareService } from '../services/share.service';
 import { validateShareRequest } from '../middleware/validation.middleware';
 import logger from '../utils/logger';
+import { twitterService } from '../services/twitter.service';
 
 const router = express.Router();
 
@@ -53,6 +54,21 @@ router.get('/:shareId', async (req, res, next) => {
     res.json(roastData);
   } catch (error) {
     next(error);
+  }
+});
+
+router.post('/twitter', async (req, res) => {
+  const { text, image_url } = req.body;
+  
+  try {
+    const success = await twitterService.shareWithMedia(text, image_url);
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to share on Twitter' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

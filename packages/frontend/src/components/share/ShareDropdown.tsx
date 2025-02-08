@@ -65,19 +65,10 @@ export const ShareDropdown: React.FC<ShareDropdownProps> = ({ roastData, classNa
   const handleNativeShare = async () => {
     setLoading(true);
     try {
-      // For native sharing, we can use the screenshot approach
-      const memeElement = getMemeElement();
-      if (!memeElement) {
-        throw new Error('Meme element not found');
-      }
-
-      const imageBlob = await captureElement(memeElement);
-      const file = new File([imageBlob], 'roast.jpg', { type: 'image/jpeg' });
-
+      // Replace screenshot approach with direct meme URL sharing
       await navigator.share({
         title: 'Solana Wallet Roast',
         text: roastData.roast,
-        files: [file],
         url: window.location.href
       });
     } catch (error) {

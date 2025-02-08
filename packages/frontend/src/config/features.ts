@@ -12,5 +12,10 @@ export const FEATURES = {
     ENABLED: true,
     ERROR_TRACKING: true,
     PERFORMANCE: true
+  },
+  SHARING: {
+    TWITTER: true,
+    CLIPBOARD: true,
+    NATIVE: true,
   }
 } as const; 

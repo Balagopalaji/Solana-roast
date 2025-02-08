@@ -1,4 +1,3 @@
-import { RoastResponse } from '../types/roast';
 import { metrics } from './metrics.service';
 import { AppError, ErrorCategory } from '../types/errors';
 
@@ -10,7 +9,6 @@ export interface ShareConfig {
     twitter: boolean;
     clipboard: boolean;
     download: boolean;
-    screenshot?: boolean;
   };
   fallbacks: {
     primary: 'clipboard' | 'download';
@@ -23,6 +21,7 @@ export interface ShareOptions {
   url?: string;
   title?: string;
   type?: 'native' | 'twitter' | 'clipboard';
+  image_url?: string;
 }
 
 export interface ShareResult {
@@ -60,7 +59,15 @@ class ShareService {
           result = await this.nativeShare({ text, url, title });
           break;
         case 'twitter':
-          result = await this.twitterShare({ text, url });
+          if (options.image_url) {
+            try {
+              result = await this.twitterShareWithMedia(options);
+            } catch (error) {
+              result = await this.twitterShare(options);
+            }
+          } else {
+            result = await this.twitterShare(options);
+          }
           break;
         default:
           result = await this.clipboardShare(text);
@@ -167,10 +174,10 @@ class ShareService {
     }
   }
 
-  private async twitterShare({ text, url }: ShareOptions): Promise<ShareResult> {
+  private async twitterShare(options: ShareOptions): Promise<ShareResult> {
     try {
-      const tweetText = encodeURIComponent(text);
-      const tweetUrl = url ? `&url=${encodeURIComponent(url)}` : '';
+      const tweetText = encodeURIComponent(options.text);
+      const tweetUrl = options.url ? `&url=${encodeURIComponent(options.url)}` : '';
       const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}${tweetUrl}`;
       
       window.open(twitterUrl, '_blank', 'noopener,noreferrer');
@@ -180,11 +187,27 @@ class ShareService {
     }
   }
 
-  async generateShareImage(roastData: RoastResponse): Promise<string> {
-    // Implementation for generating shareable image
-    // This will be used for social media sharing
-    // TODO: Implement image generation
-    return '';
+  private async twitterShareWithMedia(options: ShareOptions): Promise<ShareResult> {
+    try {
+      const response = await fetch('/api/share/twitter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: options.text,
+          image_url: options.image_url
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to share on Twitter');
+      }
+
+      return { success: true, method: 'twitter' };
+    } catch (error) {
+      throw new Error('Failed to share on Twitter with media');
+    }
   }
 }
 

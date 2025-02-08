@@ -1,4 +1,4 @@
-import { metrics } from './metrics.service';
+// import { metrics } from './metrics.service';
 
 interface OptimizationOptions {
   maxWidth?: number;
