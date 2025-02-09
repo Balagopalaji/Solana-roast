@@ -6,6 +6,8 @@ import { downloadImage } from '../../utils/image';
 import { metrics } from '../../services/metrics.service';
 import { shareService } from '../../services/share.service';
 import { metadataService } from '../../services/metadata.service';
+import { clipboardService } from '../../services/clipboard.service';
+import { logger } from '../../utils/logger';
 
 interface RoastDisplayProps {
   roastData: RoastResponse | null;
@@ -25,6 +27,7 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
   // Define all hooks at the top level unconditionally
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
+  const [isCopying, setIsCopying] = useState(false);
 
   useEffect(() => {
     metrics.initialize();
@@ -61,17 +64,6 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
     setIsVisible(false);
     onClose?.();
   }, [onClose]);
-
-  const handleCopy = useCallback(async () => {
-    if (!roastData?.roast) return;
-    try {
-      await navigator.clipboard.writeText(roastData.roast);
-      setToastMessage('Roast copied to clipboard!');
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      setToastMessage('Failed to copy roast');
-    }
-  }, [roastData?.roast]);
 
   const handleShare = useCallback(async () => {
     if (!roastData?.roast) return;
@@ -120,6 +112,78 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
       setToastMessage('Failed to open Twitter. Try copying instead.');
     }
   }, [roastData?.roast]);
+
+  const convertToPng = async (blob: Blob): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((pngBlob) => {
+          if (pngBlob) {
+            resolve(pngBlob);
+          } else {
+            reject(new Error("Failed to convert to PNG"));
+          }
+        }, "image/png");
+      };
+
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = URL.createObjectURL(blob);
+    });
+  };
+
+  const handleCopy = async () => {
+    if (!roastData?.meme_url) {
+      setToastMessage('No meme available to copy');
+      return;
+    }
+
+    setIsCopying(true);
+    try {
+      // Fetch the image directly
+      const response = await fetch(roastData.meme_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+
+      // Get the original blob and convert to PNG
+      const originalBlob = await response.blob();
+      const pngBlob = await convertToPng(originalBlob);
+
+      // Create HTML content
+      const htmlContent = `
+        <div>${roastData.roast}</div>
+        <img src="${roastData.meme_url}" alt="Roast meme">
+      `;
+
+      // Write to clipboard
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([htmlContent], { type: 'text/html' }),
+          'image/png': pngBlob
+        })
+      ]);
+
+      setToastMessage('Roast copied to clipboard! 📋');
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      setToastMessage(error instanceof Error ? error.message : 'Failed to copy');
+    } finally {
+      setIsCopying(false);
+    }
+  };
 
   // Handle visibility after all hooks are defined
   if (!isVisible) return null;
@@ -196,9 +260,10 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
             </button>
             <button 
               onClick={handleCopy}
-              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+              disabled={isCopying}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in disabled:opacity-50"
             >
-              📋 Copy
+              {isCopying ? '⌛ Copying...' : '📋 Copy'}
             </button>
             <button 
               onClick={handleShare}

@@ -6,18 +6,23 @@ import { Button, Window } from '../ui';
 import { logger } from '../../utils/logger';
 import { validateWalletAddress } from '../../utils/validation';
 import { metrics } from '../../services/metrics.service';
+import { useWallet } from '../../hooks/useWallet';
+import { RoastDisplay } from './RoastDisplay';
 
-export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
+export const RoastGenerator: React.FC = () => {
+  const { publicKey } = useWallet();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roastData, setRoastData] = useState<RoastResponse | null>(null);
 
   const handleGenerateRoast = async () => {
+    if (!publicKey) return;
+    
     try {
       metrics.trackEvent({
         category: 'roast',
         action: 'generate_start',
-        label: walletAddress
+        label: publicKey.toString()
       });
 
       // Clear previous state
@@ -25,35 +30,35 @@ export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
       setError(null);
       
       // Validate wallet address
-      const validation = validateWalletAddress(walletAddress);
+      const validation = validateWalletAddress(publicKey.toString());
       if (!validation.valid) {
         setError(validation.error || 'Invalid wallet address');
         return;
       }
 
       logger.debug('Generating roast for wallet:', {
-        address: walletAddress,
+        address: publicKey.toString(),
         timestamp: new Date().toISOString()
       });
       
-      const response = await roastService.generateRoast(walletAddress);
+      const response = await roastService.generateRoast(publicKey.toString());
       setRoastData(response);
 
       metrics.trackEvent({
         category: 'roast',
         action: 'generate_success',
-        label: walletAddress
+        label: publicKey.toString()
       });
     } catch (error) {
       metrics.trackError({
         error: error instanceof Error ? error : new Error('Unknown error'),
         context: 'generate_roast',
-        metadata: { wallet: walletAddress }
+        metadata: { wallet: publicKey?.toString() }
       });
       
       logger.error('Failed to generate roast:', {
         error,
-        walletAddress,
+        walletAddress: publicKey?.toString(),
         timestamp: new Date().toISOString()
       });
       
@@ -95,20 +100,16 @@ export function RoastGenerator({ walletAddress }: { walletAddress: string }) {
             </Button>
 
             {roastData && (
-              <div className="roast-content p-4">
-                <p className="text-lg mb-4">{roastData.roast}</p>
-                {roastData.meme_url && (
-                  <img 
-                    src={roastData.meme_url} 
-                    alt="Roast Meme" 
-                    className="roast-meme max-w-full h-auto rounded"
-                  />
-                )}
-              </div>
+              <RoastDisplay
+                roastData={roastData}
+                loading={loading}
+                error={error}
+                onClose={() => setRoastData(null)}
+              />
             )}
           </>
         )}
       </Window>
     </ErrorBoundary>
   );
-} 
+}; 

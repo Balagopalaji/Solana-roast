@@ -1,5 +1,7 @@
 import { metrics } from './metrics.service';
 import { AppError, ErrorCategory } from '../types/errors';
+import { clipboardService } from './clipboard.service';
+import { logger } from '../utils/logger';
 
 export interface ShareConfig {
   baseUrl: string;
@@ -43,20 +45,18 @@ class ShareService {
   }
 
   async shareRoast(options: ShareOptions): Promise<ShareResult> {
-    const { text, url, title = 'My Solana Wallet Roast', type = 'native' } = options;
-    
     try {
       metrics.trackEvent({
         category: 'share',
         action: 'start',
-        label: type
+        label: options.type || 'native'
       });
 
       let result: ShareResult;
 
-      switch (type) {
+      switch (options.type) {
         case 'native':
-          result = await this.nativeShare({ text, url, title });
+          result = await this.nativeShare(options);
           break;
         case 'twitter':
           if (options.image_url) {
@@ -69,8 +69,11 @@ class ShareService {
             result = await this.twitterShare(options);
           }
           break;
+        case 'clipboard':
+          result = await this.clipboardShare(options);
+          break;
         default:
-          result = await this.clipboardShare(text);
+          result = await this.clipboardShare(options);
       }
 
       if (result.success) {
@@ -83,12 +86,13 @@ class ShareService {
 
       return result;
     } catch (error) {
+      logger.error('Share failed:', error);
       const appError = this.wrapError(error);
       
       metrics.trackError({
         error: appError,
         context: 'share_service',
-        metadata: { type }
+        metadata: { type: options.type || 'failed' }
       });
 
       // Return a user-friendly error result
@@ -142,7 +146,7 @@ class ShareService {
 
   private async nativeShare(options: ShareOptions): Promise<ShareResult> {
     if (!navigator.share) {
-      return this.clipboardShare(options.text);
+      return this.clipboardShare(options);
     }
 
     try {
@@ -165,12 +169,21 @@ class ShareService {
     }
   }
 
-  private async clipboardShare(text: string): Promise<ShareResult> {
+  private async clipboardShare(options: ShareOptions): Promise<ShareResult> {
     try {
-      await navigator.clipboard.writeText(text);
+      if (!options.text || !options.image_url) {
+        throw new Error('Text and image URL are required for clipboard sharing');
+      }
+
+      await clipboardService.copyToClipboard(options.text, options.image_url);
       return { success: true, method: 'clipboard' };
     } catch (error) {
-      throw new Error('Failed to copy to clipboard');
+      logger.error('Clipboard share failed:', error);
+      return { 
+        success: false, 
+        method: 'clipboard',
+        error: new Error('Failed to copy to clipboard')
+      };
     }
   }
 

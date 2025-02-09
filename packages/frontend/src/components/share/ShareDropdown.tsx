@@ -3,6 +3,7 @@ import { RoastResponse } from '../../types/roast';
 import { shareService } from '../../services/share.service';
 import { Toast } from '../common/Toast';
 import { metrics } from '../../services/metrics.service';
+import { clipboardService } from '../../services/clipboard.service';
 
 interface ShareDropdownProps {
   roastData: RoastResponse;
@@ -52,16 +53,26 @@ export const ShareDropdown: React.FC<ShareDropdownProps> = ({ roastData, classNa
         label: type
       });
 
-      const result = await shareService.shareRoast({
-        text: roastData.roast,
-        url: window.location.href,
-        type,
-        image_url: roastData.meme_url
-      });
-
-      if (!result.success && result.error) {
-        setToastMessage(result.error.message);
+      if (type === 'clipboard' && roastData.meme_url) {
+        // Direct clipboard handling
+        await clipboardService.copyToClipboard(
+          roastData.roast,
+          roastData.meme_url
+        );
+        setToastMessage('Copied to clipboard with meme!');
         setShowToast(true);
+      } else {
+        const result = await shareService.shareRoast({
+          text: roastData.roast,
+          url: window.location.href,
+          type,
+          image_url: roastData.meme_url
+        });
+
+        if (!result.success && result.error) {
+          setToastMessage(result.error.message);
+          setShowToast(true);
+        }
       }
     } catch (error) {
       setToastMessage(error instanceof Error ? error.message : 'Share failed');

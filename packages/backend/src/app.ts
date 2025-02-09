@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -7,6 +7,7 @@ import roastRoutes from './routes/roast.routes';
 import { environment } from './config/environment';
 import logger from './utils/logger';
 import { requestLogger } from './middleware/logging.middleware';
+import routes from './routes';
 
 const app = express();
 
@@ -22,15 +23,17 @@ app.use(express.json());
 app.use(requestLogger);
 
 // Routes
-app.use('/roast', roastRoutes);
-app.use('/test-connection', roastRoutes);
+app.use('/', routes);
 
 // Health check endpoint
-app.get('/health', (_, res) => {
+app.get('/health', (_: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
 // Error handling
-app.use(errorHandler);
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 export default app;
