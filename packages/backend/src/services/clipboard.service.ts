@@ -1,6 +1,4 @@
-import logger from '../utils/logger';
-
-export class ClipboardService {
+class ClipboardService {
   private async convertToPng(blob: Blob): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -35,7 +33,6 @@ export class ClipboardService {
   async copyToClipboard(text: string, imageUrl: string): Promise<void> {
     try {
       // Fetch image data from our API
-      logger.debug('Fetching image data from API...');
       const response = await fetch(`/api/clipboard/fetch-image?url=${encodeURIComponent(imageUrl)}`);
       
       if (!response.ok) {
@@ -49,7 +46,6 @@ export class ClipboardService {
       }
 
       // Fetch the image as a blob
-      logger.debug('Fetching image as blob...');
       const imgResponse = await fetch(jsonData.data);
       if (!imgResponse.ok) {
         throw new Error(`Failed to fetch image data: ${imgResponse.statusText}`);
@@ -57,7 +53,6 @@ export class ClipboardService {
       const originalBlob = await imgResponse.blob();
 
       // Convert to PNG
-      logger.debug('Converting image to PNG...');
       const pngBlob = await this.convertToPng(originalBlob);
 
       // Create HTML content with text and image
@@ -67,7 +62,6 @@ export class ClipboardService {
       `;
 
       // Write both text/html and image/png to clipboard
-      logger.debug('Writing content to clipboard...');
       await navigator.clipboard.write([
         new ClipboardItem({
           'text/html': new Blob([htmlContent], { type: 'text/html' }),
@@ -75,9 +69,7 @@ export class ClipboardService {
         }),
       ]);
 
-      logger.debug('Content successfully copied to clipboard');
     } catch (error) {
-      logger.error('Error copying to clipboard:', error);
       throw error;
     }
   }

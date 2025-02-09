@@ -6,8 +6,6 @@ import { downloadImage } from '../../utils/image';
 import { metrics } from '../../services/metrics.service';
 import { shareService } from '../../services/share.service';
 import { metadataService } from '../../services/metadata.service';
-import { clipboardService } from '../../services/clipboard.service';
-import { logger } from '../../utils/logger';
 
 interface RoastDisplayProps {
   roastData: RoastResponse | null;
