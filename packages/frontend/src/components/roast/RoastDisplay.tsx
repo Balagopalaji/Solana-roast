@@ -7,7 +7,6 @@ import { metrics } from '../../services/metrics.service';
 import { shareService } from '../../services/share.service';
 import { metadataService } from '../../services/metadata.service';
 import { clipboardService } from '../../services/clipboard.service';
-import { logger } from '../../utils/logger';
 
 interface RoastDisplayProps {
   roastData: RoastResponse | null;
@@ -28,6 +27,7 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isCopying, setIsCopying] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     metrics.initialize();
@@ -66,27 +66,41 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
   }, [onClose]);
 
   const handleShare = useCallback(async () => {
-    if (!roastData?.roast) return;
+    if (!roastData?.roast || !roastData?.meme_url) return;
     
-    const result = await shareService.shareRoast({
-      text: roastData.roast,
-      url: window.location.href,
-      type: 'native'
-    });
+    setIsSharing(true);
+    try {
+      // First get the PNG blob using our existing service
+      const response = await fetch(roastData.meme_url);
+      const blob = await response.blob();
+      const pngBlob = await clipboardService.convertToPng(blob);
 
-    if (result.success) {
-      setToastMessage(
-        result.method === 'clipboard' 
-          ? 'Copied to clipboard!' 
-          : 'Shared successfully!'
-      );
-    } else if (result.error?.message.includes('cancelled')) {
-      // Don't show error message for user cancellations
-      return;
-    } else {
+      // Try native sharing first
+      const result = await shareService.shareRoast({
+        text: roastData.roast,
+        url: window.location.href,
+        image: pngBlob,
+        type: 'native'
+      });
+
+      if (result.success) {
+        setToastMessage('Shared successfully! 🎉');
+      } else if (result.error?.message.includes('cancelled')) {
+        // Don't show error for user cancellations
+        return;
+      } else {
+        // Try clipboard fallback with URL
+        const imageUrl = roastData.meme_url; // Use URL for clipboard
+        await clipboardService.copyToClipboard(roastData.roast, imageUrl);
+        setToastMessage('Shared to clipboard instead!');
+      }
+    } catch (error) {
+      console.error('Share failed:', error);
       setToastMessage('Failed to share. Try copying instead.');
+    } finally {
+      setIsSharing(false);
     }
-  }, [roastData?.roast]);
+  }, [roastData?.roast, roastData?.meme_url]);
 
   const handleDownload = useCallback(async () => {
     if (!roastData?.meme_url) {
@@ -162,13 +176,13 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
       const originalBlob = await response.blob();
       const pngBlob = await convertToPng(originalBlob);
 
-      // Create HTML content
+      // Creates HTML content with both text and image
       const htmlContent = `
         <div>${roastData.roast}</div>
         <img src="${roastData.meme_url}" alt="Roast meme">
       `;
 
-      // Write to clipboard
+      // Writes to clipboard with both HTML and PNG
       await navigator.clipboard.write([
         new ClipboardItem({
           'text/html': new Blob([htmlContent], { type: 'text/html' }),
@@ -267,9 +281,10 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
             </button>
             <button 
               onClick={handleShare}
-              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
+              disabled={isSharing}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in disabled:opacity-50"
             >
-              📤 Share
+              {isSharing ? '⌛ Sharing...' : '📤 Share'}
             </button>
             <button 
               onClick={handleTwitterShare}

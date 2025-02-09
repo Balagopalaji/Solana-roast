@@ -1,34 +1,19 @@
-import { metrics } from './metrics.service';
-import { AppError, ErrorCategory } from '../types/errors';
-import { clipboardService } from './clipboard.service';
 import { logger } from '../utils/logger';
+import { clipboardService } from './clipboard.service';
+import { metrics } from './metrics.service';
 
-export interface ShareConfig {
-  baseUrl: string;
-  twitterHandle: string;
-  defaultHashtags: string[];
-  methods: {
-    twitter: boolean;
-    clipboard: boolean;
-    download: boolean;
-  };
-  fallbacks: {
-    primary: 'clipboard' | 'download';
-    secondary: 'text' | 'link';
-  };
-}
+export type ShareMethod = 'native' | 'twitter' | 'clipboard' | 'failed';
 
 export interface ShareOptions {
   text: string;
-  url?: string;
-  title?: string;
-  type?: 'native' | 'twitter' | 'clipboard';
-  image_url?: string;
+  url: string;
+  image?: Blob;
+  type: Exclude<ShareMethod, 'failed'>;
 }
 
 export interface ShareResult {
   success: boolean;
-  method: 'native' | 'clipboard' | 'twitter' | 'failed';
+  method: ShareMethod;
   error?: Error;
 }
 
@@ -46,10 +31,11 @@ class ShareService {
 
   async shareRoast(options: ShareOptions): Promise<ShareResult> {
     try {
+      // Track share attempt
       metrics.trackEvent({
         category: 'share',
-        action: 'start',
-        label: options.type || 'native'
+        action: 'attempt',
+        label: options.type
       });
 
       let result: ShareResult;
@@ -59,110 +45,107 @@ class ShareService {
           result = await this.nativeShare(options);
           break;
         case 'twitter':
-          if (options.image_url) {
-            try {
-              result = await this.twitterShareWithMedia(options);
-            } catch (error) {
-              result = await this.twitterShare(options);
-            }
-          } else {
-            result = await this.twitterShare(options);
-          }
+          result = await this.twitterShare(options);
           break;
         case 'clipboard':
           result = await this.clipboardShare(options);
           break;
         default:
-          result = await this.clipboardShare(options);
+          logger.error('Invalid share type:', options.type);
+          result = {
+            success: false,
+            method: 'failed',
+            error: new Error('Invalid share type')
+          };
       }
 
-      if (result.success) {
-        metrics.trackEvent({
-          category: 'share',
-          action: 'success',
-          label: result.method
-        });
-      }
+      // Track share result
+      metrics.trackEvent({
+        category: 'share',
+        action: result.success ? 'success' : 'failure',
+        label: result.method
+      });
 
       return result;
     } catch (error) {
       logger.error('Share failed:', error);
-      const appError = this.wrapError(error);
-      
-      metrics.trackError({
-        error: appError,
-        context: 'share_service',
-        metadata: { type: options.type || 'failed' }
-      });
-
-      // Return a user-friendly error result
       return {
         success: false,
         method: 'failed',
-        error: new Error(this.getFriendlyErrorMessage(appError))
+        error: error instanceof Error ? error : new Error('Share failed')
       };
     }
   }
 
-  private getFriendlyErrorMessage(error: AppError): string {
-    switch (error.metadata.category) {
-      case ErrorCategory.NETWORK:
-        return 'Network error. Please check your connection and try again.';
-      case ErrorCategory.VALIDATION:
-        return 'Share cancelled.';
-      case ErrorCategory.RATE_LIMIT:
-        return 'Too many attempts. Please wait a moment and try again.';
-      default:
-        return 'Failed to share. Try copying instead.';
-    }
-  }
-
-  private wrapError(error: unknown): AppError {
-    if (error instanceof AppError) return error;
-    
-    const message = error instanceof Error ? error.message : 'Unknown error occurred';
-    
-    return new AppError(message, {
-      category: this.determineErrorCategory(error),
-      retryable: this.isErrorRetryable(error),
-      context: 'share_service'
-    });
-  }
-
-  private determineErrorCategory(error: unknown): ErrorCategory {
-    if (error instanceof Error) {
-      if (error.name === 'AbortError') return ErrorCategory.VALIDATION;
-      if (error.message.includes('network')) return ErrorCategory.NETWORK;
-    }
-    return ErrorCategory.UNKNOWN;
-  }
-
-  private isErrorRetryable(error: unknown): boolean {
-    return error instanceof Error && 
-           [ErrorCategory.NETWORK, ErrorCategory.TIMEOUT].includes(
-             this.determineErrorCategory(error)
-           );
-  }
-
   private async nativeShare(options: ShareOptions): Promise<ShareResult> {
     if (!navigator.share) {
-      return this.clipboardShare(options);
+      return {
+        success: false,
+        method: 'failed',
+        error: new Error('Native sharing not supported')
+      };
     }
 
     try {
-      await navigator.share({
-        title: options.title,
-        text: options.text,
-        url: options.url
-      });
+      // Create a rich text version that includes everything
+      const richText = `${options.text}\n\nShare this roast: ${options.url}`;
 
+      if (options.image && typeof navigator.canShare === 'function') {
+        const file = new File([options.image], 'roast-meme.png', {
+          type: 'image/png'
+        });
+
+        // Try sharing with both text and file
+        const fullShareData = {
+          title: 'My Solana Wallet Roast 🔥',
+          text: richText,
+          url: options.url,
+          files: [file]
+        };
+
+        // First attempt: Try sharing everything
+        if (navigator.canShare(fullShareData)) {
+          try {
+            await navigator.share(fullShareData);
+            return { success: true, method: 'native' };
+          } catch (error) {
+            console.log('Full share failed, trying fallback...', error);
+          }
+        }
+
+        // Second attempt: Try sharing just the image with text
+        const imageWithTextData = {
+          title: 'My Solana Wallet Roast 🔥',
+          text: richText,
+          files: [file]
+        };
+
+        if (navigator.canShare(imageWithTextData)) {
+          try {
+            await navigator.share(imageWithTextData);
+            return { success: true, method: 'native' };
+          } catch (error) {
+            console.log('Image with text share failed, trying text only...', error);
+          }
+        }
+      }
+
+      // Final fallback: Share text only
+      const textOnlyData = {
+        title: 'My Solana Wallet Roast 🔥',
+        text: richText,
+        url: options.url
+      };
+
+      await navigator.share(textOnlyData);
       return { success: true, method: 'native' };
+
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
-        return { 
-          success: false, 
-          method: 'native',
-          error: new Error('Share cancelled by user')
+        return {
+          success: false,
+          method: 'failed',
+          error: new Error('Share cancelled')
         };
       }
       throw error;
@@ -171,11 +154,18 @@ class ShareService {
 
   private async clipboardShare(options: ShareOptions): Promise<ShareResult> {
     try {
-      if (!options.text || !options.image_url) {
-        throw new Error('Text and image URL are required for clipboard sharing');
+      if (!options.text) {
+        throw new Error('Text is required for clipboard sharing');
       }
 
-      await clipboardService.copyToClipboard(options.text, options.image_url);
+      if (options.image) {
+        const imageUrl = URL.createObjectURL(options.image);
+        await clipboardService.copyToClipboard(options.text, imageUrl);
+        URL.revokeObjectURL(imageUrl);
+      } else {
+        await navigator.clipboard.writeText(options.text);
+      }
+
       return { success: true, method: 'clipboard' };
     } catch (error) {
       logger.error('Clipboard share failed:', error);
@@ -196,30 +186,12 @@ class ShareService {
       window.open(twitterUrl, '_blank', 'noopener,noreferrer');
       return { success: true, method: 'twitter' };
     } catch (error) {
-      throw new Error('Failed to open Twitter share');
-    }
-  }
-
-  private async twitterShareWithMedia(options: ShareOptions): Promise<ShareResult> {
-    try {
-      const response = await fetch('/api/share/twitter', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: options.text,
-          image_url: options.image_url
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to share on Twitter');
-      }
-
-      return { success: true, method: 'twitter' };
-    } catch (error) {
-      throw new Error('Failed to share on Twitter with media');
+      logger.error('Twitter share failed:', error);
+      return {
+        success: false,
+        method: 'failed',
+        error: new Error('Failed to open Twitter share')
+      };
     }
   }
 }

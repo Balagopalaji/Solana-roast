@@ -6,11 +6,19 @@ import { Roast } from './pages/Roast';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { ClipboardTest } from './pages/ClipboardTest';
 
+// Add future flags configuration
+const routerConfig = {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true
+  }
+};
+
 const App = () => {
   return (
     <ErrorBoundary>
       <WalletProvider>
-        <Router>
+        <Router {...routerConfig}>
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />

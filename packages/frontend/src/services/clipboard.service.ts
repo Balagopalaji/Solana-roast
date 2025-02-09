@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger';
 
-class ClipboardService {
-  private async convertToPng(blob: Blob): Promise<Blob> {
+export class ClipboardService {
+  public async convertToPng(blob: Blob): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
