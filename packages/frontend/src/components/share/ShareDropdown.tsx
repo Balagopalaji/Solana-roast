@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { RoastResponse } from '../../types/roast';
 import { shareService } from '../../services/share.service';
 import { Toast } from '../common/Toast';
+import { metrics } from '../../services/metrics.service';
 
 interface ShareDropdownProps {
   roastData: RoastResponse;
@@ -18,70 +19,53 @@ export const ShareDropdown: React.FC<ShareDropdownProps> = ({ roastData, classNa
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Position dropdown based on available space
   useEffect(() => {
     if (showDropdown && buttonRef.current && dropdownRef.current) {
       const buttonRect = buttonRef.current.getBoundingClientRect();
       const dropdownHeight = dropdownRef.current.offsetHeight;
       const windowHeight = window.innerHeight;
       
-      // Check if there's enough space below
       const spaceBelow = windowHeight - buttonRect.bottom;
       setDropdownPosition(spaceBelow < dropdownHeight + 10 ? 'top' : 'bottom');
     }
   }, [showDropdown]);
 
-  const handleCopy = async () => {
+  const handleShare = async (type: 'native' | 'twitter' | 'clipboard') => {
     setLoading(true);
     try {
-      await navigator.clipboard.writeText(roastData.roast);
-      setToastMessage('Roast copied to clipboard!');
-      setShowToast(true);
-    } catch (error) {
-      setToastMessage('Failed to copy roast');
-      setShowToast(true);
-    } finally {
-      setLoading(false);
-      setShowDropdown(false);
-    }
-  };
+      metrics.trackEvent({
+        category: 'share',
+        action: 'click',
+        label: type
+      });
 
-  const handleTweet = async () => {
-    setLoading(true);
-    try {
       const result = await shareService.shareRoast({
         text: roastData.roast,
         url: window.location.href,
-        type: 'twitter',
-        image_url: roastData.meme_url // Optional: include meme image if available
+        type,
+        image_url: roastData.meme_url
       });
-      
-      if (!result.success) {
-        setToastMessage(result.error?.message || 'Failed to share to Twitter');
-        setShowToast(true);
-      }
-    } catch (error) {
-      setToastMessage('Failed to open Twitter');
-      setShowToast(true);
-    } finally {
-      setLoading(false);
-      setShowDropdown(false);
-    }
-  };
 
-  const handleNativeShare = async () => {
-    setLoading(true);
-    try {
-      // Replace screenshot approach with direct meme URL sharing
-      await navigator.share({
-        title: 'Solana Wallet Roast',
-        text: roastData.roast,
-        url: window.location.href
-      });
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setToastMessage('Failed to open share dialog');
+      if (!result.success && result.error) {
+        setToastMessage(result.error.message);
         setShowToast(true);
       }
+    } catch (error) {
+      setToastMessage(error instanceof Error ? error.message : 'Share failed');
+      setShowToast(true);
     } finally {
       setLoading(false);
       setShowDropdown(false);
@@ -106,28 +90,27 @@ export const ShareDropdown: React.FC<ShareDropdownProps> = ({ roastData, classNa
             dropdownPosition === 'top' 
               ? 'bottom-full mb-2' 
               : 'top-full mt-2'
-          } right-0 w-48 bg-win95-gray border-2 border-win95-gray-darker shadow-win95-out`}
+          } right-0 w-48 bg-win95-gray border-2 border-win95-gray-darker shadow-win95-out z-50`}
         >
           <button
-            onClick={handleCopy}
-            className="w-full px-4 py-2 text-left hover:bg-win95-gray-light"
+            onClick={() => handleShare('clipboard')}
+            className="w-full px-4 py-2 text-left hover:bg-win95-gray-light border-b border-win95-gray-darker"
           >
             📋 Copy to Clipboard
           </button>
           <button
-            onClick={handleTweet}
-            className="w-full px-4 py-2 text-left hover:bg-win95-gray-light"
+            onClick={() => handleShare('twitter')}
+            className="w-full px-4 py-2 text-left hover:bg-win95-gray-light border-b border-win95-gray-darker"
           >
             🐦 Share on Twitter
           </button>
-          {/* Only show if native sharing is available */}
           {typeof navigator !== 'undefined' && 
            'share' in navigator && (
             <button
-              onClick={handleNativeShare}
+              onClick={() => handleShare('native')}
               className="w-full px-4 py-2 text-left hover:bg-win95-gray-light"
             >
-              📱 Share via...
+              💾 Save/Share
             </button>
           )}
         </div>

@@ -1,0 +1,40 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import path from 'path';
+import { errorHandler } from './middleware/error.middleware';
+import roastRoutes from './routes/roast.routes';
+import { environment } from './config/environment';
+import logger from './utils/logger';
+import { requestLogger } from './middleware/logging.middleware';
+import proxyRoutes from './routes/proxy.routes';
+
+const app = express();
+
+// Middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(requestLogger);
+
+// API Routes
+app.use('/api/roast', roastRoutes);
+app.use('/api', proxyRoutes);
+
+// Development mode - proxy to Vite dev server
+if (process.env.NODE_ENV === 'development') {
+  app.use('/roast', (req, res) => {
+    res.redirect('http://localhost:5173/roast');
+  });
+} else {
+  // Production mode - serve static files
+  const staticPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(staticPath));
+  
+  // Handle client-side routing
