@@ -7,6 +7,8 @@ import { metrics } from '../../services/metrics.service';
 import { shareService } from '../../services/share.service';
 import { metadataService } from '../../services/metadata.service';
 import { clipboardService } from '../../services/clipboard.service';
+import { environment } from '../../config/environment';
+import { cloudinaryService } from '../../services/cloudinary.service';
 
 interface RoastDisplayProps {
   roastData: RoastResponse | null;
@@ -28,6 +30,11 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
   const [isVisible, setIsVisible] = useState(true);
   const [isCopying, setIsCopying] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<Record<string, string>>({});
+
+  // Add feature flag check
+  const isTwitterEnabled = environment.features?.twitter ?? false;
 
   useEffect(() => {
     metrics.initialize();
@@ -114,18 +121,63 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
   }, [roastData?.meme_url, roastData?.wallet?.address]);
 
   const handleTwitterShare = useCallback(async () => {
-    if (!roastData?.roast) return;
+    if (!roastData?.meme_url) return;
     
-    const result = await shareService.shareRoast({
-      text: roastData.roast,
-      url: window.location.href,
-      type: 'twitter'
-    });
+    setIsSharing(true);
+    setShareError(null);
 
-    if (!result.success) {
-      setToastMessage('Failed to open Twitter. Try copying instead.');
+    try {
+      let optimizedUrl: string;
+      
+      // Check if this specific meme is already uploaded
+      if (uploadedImages[roastData.meme_url]) {
+        optimizedUrl = cloudinaryService.getTwitterOptimizedUrl(uploadedImages[roastData.meme_url]);
+      } else {
+        const response = await fetch(roastData.meme_url);
+        const imageBlob = await response.blob();
+        
+        const url = await cloudinaryService.uploadImage(imageBlob);
+        setUploadedImages(prev => ({
+          ...prev,
+          [roastData.meme_url]: url
+        }));
+        
+        optimizedUrl = cloudinaryService.getTwitterOptimizedUrl(url);
+      }
+
+      const tweetText = `${roastData.roast}\n\nRoasted by @SolanaRoast 🔥`;
+      window.open(
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(optimizedUrl)}`,
+        '_blank'
+      );
+
+      metrics.trackEvent({
+        category: 'share',
+        action: 'twitter',
+        label: 'success'
+      });
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : 'Failed to share');
+      console.error('Share failed:', err);
+      
+      // Reset stored URL for this meme on error
+      if (roastData.meme_url) {
+        setUploadedImages(prev => {
+          const newState = { ...prev };
+          delete newState[roastData.meme_url];
+          return newState;
+        });
+      }
+
+      metrics.trackEvent({
+        category: 'share',
+        action: 'twitter',
+        label: 'error'
+      });
+    } finally {
+      setIsSharing(false);
     }
-  }, [roastData?.roast]);
+  }, [roastData?.meme_url, roastData?.roast, uploadedImages]);
 
   const convertToPng = async (blob: Blob): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -286,13 +338,21 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
             >
               {isSharing ? '⌛ Sharing...' : '📤 Share'}
             </button>
-            <button 
-              onClick={handleTwitterShare}
-              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in"
-            >
-              🐦 Tweet
-            </button>
+            {isTwitterEnabled && (
+              <button 
+                onClick={handleTwitterShare}
+                disabled={isSharing}
+                className={isSharing ? 'opacity-50' : ''}
+              >
+                {isSharing ? '🔄 Sharing...' : '🐦 Tweet'}
+              </button>
+            )}
           </div>
+          {shareError && (
+            <div className="text-red-500 mt-2 text-sm">
+              {shareError}
+            </div>
+          )}
         </div>
       </div>
       {toastMessage && (

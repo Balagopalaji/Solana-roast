@@ -1,6 +1,8 @@
 import { logger } from '../utils/logger';
 import { clipboardService } from './clipboard.service';
 import { metrics } from './metrics.service';
+import CloudinaryService from './cloudinary.service';
+import { environment } from '../config/environment';
 
 export type ShareMethod = 'native' | 'twitter' | 'clipboard' | 'failed';
 
@@ -15,12 +17,23 @@ export interface ShareResult {
   success: boolean;
   method: ShareMethod;
   error?: Error;
+  imageUrl?: string;
 }
 
 class ShareService {
   private static instance: ShareService;
+  private cloudinary?: CloudinaryService;
+  private abortController: AbortController | null = null;
 
-  private constructor() {}
+  private constructor() {
+    // Initialize Cloudinary with dependency injection support
+    try {
+      this.cloudinary = new CloudinaryService();
+    } catch (error) {
+      logger.warn('Cloudinary initialization failed:', error);
+      // Service will work without Cloudinary for non-image shares
+    }
+  }
 
   static getInstance(): ShareService {
     if (!ShareService.instance) {
@@ -74,6 +87,13 @@ class ShareService {
         method: 'failed',
         error: error instanceof Error ? error : new Error('Share failed')
       };
+    }
+  }
+
+  cancelUpload() {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
     }
   }
 
@@ -179,12 +199,29 @@ class ShareService {
 
   private async twitterShare(options: ShareOptions): Promise<ShareResult> {
     try {
+      let imageUrl = '';
+      
+      // Upload image to Cloudinary if available
+      if (options.image && this.cloudinary && environment.features.twitter) {
+        try {
+          imageUrl = await this.uploadWithRetry(options.image);
+          imageUrl = this.cloudinary.getTwitterOptimizedUrl(imageUrl);
+        } catch (error) {
+          logger.warn('Image upload failed, falling back to text-only share:', error);
+        }
+      }
+
       const tweetText = encodeURIComponent(options.text);
       const tweetUrl = options.url ? `&url=${encodeURIComponent(options.url)}` : '';
-      const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}${tweetUrl}`;
+      const imageParam = imageUrl ? `&image=${encodeURIComponent(imageUrl)}` : '';
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}${tweetUrl}${imageParam}`;
       
       window.open(twitterUrl, '_blank', 'noopener,noreferrer');
-      return { success: true, method: 'twitter' };
+      return { 
+        success: true, 
+        method: 'twitter',
+        imageUrl 
+      };
     } catch (error) {
       logger.error('Twitter share failed:', error);
       return {
@@ -193,6 +230,19 @@ class ShareService {
         error: new Error('Failed to open Twitter share')
       };
     }
+  }
+
+  private async uploadWithRetry(blob: Blob, retries = 3): Promise<string> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await this.cloudinary!.uploadImage(blob);
+      } catch (error) {
+        if (attempt === retries) throw error;
+        logger.warn(`Upload attempt ${attempt} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    throw new Error('Upload failed after retries');
   }
 }
 

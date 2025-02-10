@@ -2,11 +2,16 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { RoastDisplay } from '../RoastDisplay';
 import { vi } from 'vitest';
 import { renderWithTimers } from '../../../test/testUtils';
+import { socialShareService } from '../../../services/social-share.service';
 
 // Mock dependencies
 vi.mock('../../../utils/image', () => ({
   downloadImage: vi.fn().mockImplementation(() => Promise.resolve(true))
 }));
+
+// Mock services
+vi.mock('../../../services/social-share.service');
+vi.mock('../../../utils/clipboard.service');
 
 // Mock data
 const mockRoastData = {
@@ -167,5 +172,119 @@ describe('RoastDisplay', () => {
     );
     expect(getErrorText(/error/i)).toBeInTheDocument();
     cleanupError();
+  });
+});
+
+describe('RoastDisplay Twitter Integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    // Mock fetch with proper URL handling
+    global.fetch = vi.fn().mockImplementation((_: string) => // Use underscore to indicate unused param
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(new Blob(['test-image'], { type: 'image/jpeg' }))
+      })
+    );
+
+    // Mock environment
+    vi.mock('../../config/environment', () => ({
+      environment: {
+        features: { twitter: true },
+        cloudinary: {
+          cloudName: 'test-cloud',
+          uploadPreset: 'test-preset'
+        }
+      }
+    }));
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  it('should handle successful Twitter share with image', async () => {
+    render(
+      <RoastDisplay 
+        roastData={mockRoastData}
+        loading={false}
+        error={null}
+      />
+    );
+    
+    // First click share to open menu
+    await act(async () => {
+      fireEvent.click(screen.getByText(/📤 Share/i));
+    });
+
+    // Then click tweet button
+    const tweetButton = await screen.findByText(/🐦 Tweet/i);
+    await act(async () => {
+      fireEvent.click(tweetButton);
+    });
+
+    await waitFor(() => {
+      expect(socialShareService.shareToTwitter).toHaveBeenCalledWith({
+        text: expect.stringContaining(mockRoastData.roast),
+        url: expect.any(String),
+        image: expect.any(Blob)
+      });
+    });
+  });
+
+  it('should handle network timeouts', async () => {
+    vi.mocked(socialShareService.shareToTwitter).mockRejectedValue(
+      new Error('Network timeout')
+    );
+
+    render(
+      <RoastDisplay 
+        roastData={mockRoastData}
+        loading={false}
+        error={null}
+      />
+    );
+
+    // Open share menu first
+    await act(async () => {
+      fireEvent.click(screen.getByText(/📤 Share/i));
+    });
+
+    const tweetButton = await screen.findByText(/🐦 Tweet/i);
+    await act(async () => {
+      fireEvent.click(tweetButton);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed.*try again/i)).toBeInTheDocument();
+    });
+  });
+
+  it('should respect twitter feature flag', async () => {
+    // Mock environment with twitter disabled
+    vi.mock('../../config/environment', () => ({
+      environment: {
+        features: { twitter: false },
+        cloudinary: {
+          cloudName: 'test',
+          uploadPreset: 'test'
+        }
+      }
+    }));
+
+    render(
+      <RoastDisplay 
+        roastData={mockRoastData}
+        loading={false}
+        error={null}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText(/📤 Share/i));
+    });
+
+    expect(screen.queryByText(/🐦 Tweet/i)).not.toBeInTheDocument();
   });
 }); 

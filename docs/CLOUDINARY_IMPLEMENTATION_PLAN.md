@@ -35,6 +35,29 @@ packages/frontend/
 │       └── environment.ts
 ```
 
+## Progress Tracker
+### Prerequisites
+- [x] Created git tag "begin-cloudinary" as restoration point
+- [x] Created feature branch `feat/cloudinary-env`
+- [x] Cloudinary Account Setup
+  - [x] Create free account
+  - [x] Note down cloud name
+  - [x] Create basic upload preset "roast-preset"
+    - [x] Unsigned uploading enabled
+    - [x] Use filename as public ID
+    - [x] Append unique suffix
+- [x] Environment Variables Ready
+  - [x] .env files prepared
+  - [x] Values obtained from Cloudinary dashboard
+
+### Implementation Progress
+- [✓] Prompt 1: Environment Setup
+- [ ] Prompt 2: Cloudinary Service
+- [ ] Prompt 3: Share Service Integration
+- [ ] Prompt 4: Component Integration
+- [ ] Prompt 5: Testing
+- [ ] Prompt 6: Monitoring
+
 ## Implementation Prompts
 
 ### Validation Guidelines
@@ -44,6 +67,19 @@ Each prompt should be validated before proceeding:
 3. Verify feature flag behavior
 4. Test fallback scenarios
 5. Validate TypeScript compilation
+6. Run `npm run verify` to check backend connectivity
+
+### Safety Measures
+1. Git tag "begin-cloudinary" has been created as restoration point
+2. Each step should be done in a feature branch
+3. No changes to existing share functionality until new system is verified
+4. Keep old implementation as fallback
+5. Run verify script between steps:
+   ```bash
+   npm run verify  # Ensures backend connectivity
+   npm run test    # Runs all tests
+   npm run build   # Verifies build process
+   ```
 
 ### Rollback Instructions
 For each step:
@@ -54,6 +90,7 @@ For each step:
 
 ### Prompt 1: Environment Setup
 ```prompt
+Act as the senior full stack developer and:
 Add Cloudinary configuration to the environment:
 1. Update environment.ts interface
     - Add cloudinary config section
@@ -77,6 +114,7 @@ Rollback:
 
 ### Prompt 2: Cloudinary Service
 ```prompt
+Act as the senior full stack developer and:
 Create the CloudinaryService class:
 1. Create new file cloudinary.service.ts
     - Add proper imports
@@ -454,38 +492,18 @@ describe('ShareService', () => {
 });
 ```
 
-## Monitoring Plan
-
-1. Track usage metrics:
-   - Upload count
-   - Success/failure rates
-   - Image sizes
-   - Transformation counts
-
-2. Add error reporting:
-   ```typescript
-   // In cloudinary.service.ts
-   private logError(error: Error, context: string) {
-     // Add your error reporting service here
-     console.error(`Cloudinary ${context}:`, error);
-   }
-   ```
-
-## Resources
-1. [Cloudinary Upload API Documentation](https://cloudinary.com/documentation/upload_images)
-2. [Twitter Card Validator](https://cards-dev.twitter.com/validator)
-3. [Cloudinary React SDK](https://cloudinary.com/documentation/react_integration)
-4. [Twitter Web Intents](https://developer.twitter.com/en/docs/twitter-for-websites/tweet-button/guides/web-intent)
-
-## Rollout Plan
-1. Deploy to staging
-2. Monitor usage and errors
-3. Validate Twitter previews
-4. Deploy to production with feature flag
-5. Gradually enable for all users
-
-Would you like me to:
-1. Start with a specific step?
-2. Add more detail to any section?
-3. Create additional test cases?
-4. Something else? 
+### Client-Side Settings
+These will be handled in CloudinaryService instead of preset:
+```typescript
+interface CloudinaryConfig {
+  maxFileSizeMB: number;  // Validate before upload
+  allowedFormats: string[];  // Check file type client-side
+  transformations: {  // Apply after upload
+    width: 1200,
+    height: 630,
+    crop: 'fit',
+    format: 'auto',
+    quality: 'auto:good'
+  }
+}
+```
