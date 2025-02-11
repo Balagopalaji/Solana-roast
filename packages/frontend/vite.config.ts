@@ -16,9 +16,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env.VITE_API_URL || 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
         secure: false,
         ws: true,
         configure: (proxy, _options) => {
@@ -33,7 +32,13 @@ export default defineConfig({
           });
         }
       }
-    }
+    },
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '.ngrok-free.app',
+      'solanaroast.lol'
+    ],
   },
   build: {
     sourcemap: true

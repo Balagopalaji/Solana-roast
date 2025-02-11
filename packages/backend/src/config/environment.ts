@@ -38,6 +38,7 @@ export const environment = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: process.env.PORT || 3000,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  appUrl: process.env.APP_URL || 'https://solanaroast.lol',
   rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW || '900000', 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
   solana: {
@@ -58,7 +59,7 @@ export const environment = {
     accessToken: process.env.TWITTER_ACCESS_TOKEN,
     accessSecret: process.env.TWITTER_ACCESS_SECRET
   }
-};
+} as const;
 
 // Create and export OpenAI client
 export const openai = new OpenAI({

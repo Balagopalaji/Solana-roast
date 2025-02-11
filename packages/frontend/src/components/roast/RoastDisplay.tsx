@@ -8,7 +8,8 @@ import { shareService } from '../../services/share.service';
 import { metadataService } from '../../services/metadata.service';
 import { clipboardService } from '../../services/clipboard.service';
 import { environment } from '../../config/environment';
-import { cloudinaryService } from '../../services/cloudinary.service';
+import { logger } from '../../utils/logger';
+import { socialShareService } from '../../services/social-share.service';
 
 interface RoastDisplayProps {
   roastData: RoastResponse | null;
@@ -30,11 +31,13 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
   const [isVisible, setIsVisible] = useState(true);
   const [isCopying, setIsCopying] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
-  const [uploadedImages, setUploadedImages] = useState<Record<string, string>>({});
 
   // Add feature flag check
   const isTwitterEnabled = environment.features?.twitter ?? false;
+
+  // Add loading state for Twitter share
+  const [isTwitterSharing, setIsTwitterSharing] = useState(false);
+  const [twitterShareError, setTwitterShareError] = useState<string | null>(null);
 
   useEffect(() => {
     metrics.initialize();
@@ -120,64 +123,43 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
     setToastMessage(success ? 'Meme downloaded successfully! 🎉' : 'Failed to download meme');
   }, [roastData?.meme_url, roastData?.wallet?.address]);
 
-  const handleTwitterShare = useCallback(async () => {
-    if (!roastData?.meme_url) return;
-    
-    setIsSharing(true);
-    setShareError(null);
+  const handleTwitterShare = async () => {
+    if (!roastData?.roast || !roastData?.meme_url) {
+      setTwitterShareError('No roast or meme available to share');
+      return;
+    }
+
+    setIsTwitterSharing(true);
+    setTwitterShareError(null);
 
     try {
-      let optimizedUrl: string;
-      
-      // Check if this specific meme is already uploaded
-      if (uploadedImages[roastData.meme_url]) {
-        optimizedUrl = cloudinaryService.getTwitterOptimizedUrl(uploadedImages[roastData.meme_url]);
+      logger.debug('Starting Twitter share', {
+        hasRoastData: !!roastData,
+        hasRoastText: !!roastData.roast,
+        hasMemeUrl: !!roastData.meme_url
+      });
+
+      // Let the backend handle the Cloudinary optimization
+      const result = await socialShareService.shareToTwitter({
+        text: roastData.roast,
+        url: window.location.href,
+        imageUrl: roastData.meme_url // Backend will handle Cloudinary optimization
+      });
+
+      if (result.success) {
+        setToastMessage('Shared to Twitter! 🐦');
       } else {
-        const response = await fetch(roastData.meme_url);
-        const imageBlob = await response.blob();
-        
-        const url = await cloudinaryService.uploadImage(imageBlob);
-        setUploadedImages(prev => ({
-          ...prev,
-          [roastData.meme_url]: url
-        }));
-        
-        optimizedUrl = cloudinaryService.getTwitterOptimizedUrl(url);
+        setTwitterShareError(result.error || 'Failed to share to Twitter');
       }
 
-      const tweetText = `${roastData.roast}\n\nRoasted by @SolanaRoast 🔥`;
-      window.open(
-        `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(optimizedUrl)}`,
-        '_blank'
-      );
-
-      metrics.trackEvent({
-        category: 'share',
-        action: 'twitter',
-        label: 'success'
-      });
-    } catch (err) {
-      setShareError(err instanceof Error ? err.message : 'Failed to share');
-      console.error('Share failed:', err);
-      
-      // Reset stored URL for this meme on error
-      if (roastData.meme_url) {
-        setUploadedImages(prev => {
-          const newState = { ...prev };
-          delete newState[roastData.meme_url];
-          return newState;
-        });
-      }
-
-      metrics.trackEvent({
-        category: 'share',
-        action: 'twitter',
-        label: 'error'
-      });
+      logger.info('Twitter share result:', result);
+    } catch (error) {
+      logger.error('Twitter share failed:', error);
+      setTwitterShareError(error instanceof Error ? error.message : 'Failed to share to Twitter');
     } finally {
-      setIsSharing(false);
+      setIsTwitterSharing(false);
     }
-  }, [roastData?.meme_url, roastData?.roast, uploadedImages]);
+  };
 
   const convertToPng = async (blob: Blob): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -339,20 +321,20 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
               {isSharing ? '⌛ Sharing...' : '📤 Share'}
             </button>
             {isTwitterEnabled && (
-              <button 
+              <button
                 onClick={handleTwitterShare}
-                disabled={isSharing}
-                className={isSharing ? 'opacity-50' : ''}
+                disabled={isTwitterSharing}
+                className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in disabled:opacity-50"
               >
-                {isSharing ? '🔄 Sharing...' : '🐦 Tweet'}
+                {isTwitterSharing ? '⌛ Sharing...' : '🐦 Tweet'}
               </button>
             )}
           </div>
-          {shareError && (
-            <div className="text-red-500 mt-2 text-sm">
-              {shareError}
-            </div>
-          )}
+          {twitterShareError && (
+            <div className="mt-2 text-red-500 text-sm">
+              {twitterShareError}
+          </div>
+        )}
         </div>
       </div>
       {toastMessage && (

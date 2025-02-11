@@ -1,31 +1,24 @@
-import CloudinaryService from './cloudinary.service';
-import { environment } from '../config/environment';
 import { logger } from '../utils/logger';
+import { ApiClient } from './api.service';
 
 interface TwitterShareOptions {
   text: string;
   url: string;
-  image?: Blob;
+  imageUrl?: string;
 }
 
 interface TwitterShareResult {
   success: boolean;
-  imageUrl?: string;
-  error?: Error;
+  error?: string;
+  url?: string;
 }
 
 export class SocialShareService {
   private static instance: SocialShareService;
-  private cloudinary?: CloudinaryService;
+  private apiClient: ApiClient;
 
   private constructor() {
-    if (environment.features.twitter) {
-      try {
-        this.cloudinary = new CloudinaryService();
-      } catch (error) {
-        logger.warn('Cloudinary initialization failed:', error);
-      }
-    }
+    this.apiClient = new ApiClient();
   }
 
   static getInstance(): SocialShareService {
@@ -37,30 +30,20 @@ export class SocialShareService {
 
   async shareToTwitter(options: TwitterShareOptions): Promise<TwitterShareResult> {
     try {
-      let imageUrl = '';
+      logger.debug('Sharing to Twitter:', options);
       
-      if (options.image && this.cloudinary) {
-        console.log('Uploading to Cloudinary...');
-        imageUrl = await this.cloudinary.uploadImage(options.image);
-        console.log('Cloudinary response:', imageUrl);
-        imageUrl = this.cloudinary.getTwitterOptimizedUrl(imageUrl);
-      }
+      const result = await this.apiClient.post('/api/twitter/tweet', {
+        text: options.text,
+        url: options.url,
+        imageUrl: options.imageUrl
+      });
 
-      const tweetText = imageUrl 
-        ? `${options.text}\n\n${imageUrl}` 
-        : options.text;
-
-      const twitterUrl = new URL('https://twitter.com/intent/tweet');
-      twitterUrl.searchParams.append('text', tweetText);
-      twitterUrl.searchParams.append('url', options.url);
-
-      window.open(twitterUrl.toString(), '_blank');
-      return { success: true, imageUrl };
+      return result;
     } catch (error) {
       logger.error('Twitter share failed:', error);
-      return { 
+      return {
         success: false,
-        error: error instanceof Error ? error : new Error('Failed to share to Twitter')
+        error: error instanceof Error ? error.message : 'Failed to share to Twitter'
       };
     }
   }

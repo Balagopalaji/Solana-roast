@@ -1,104 +1,101 @@
-# Twitter Media Integration Implementation
+# Twitter Integration Plan
+
+## Overview
+Integration of Twitter sharing functionality with image upload support via Cloudinary.
+
+## Current Implementation Status
+
+### ✅ Completed
+1. Frontend Services
+   - CloudinaryService with Twitter image optimization
+   - TwitterMediaService with retry mechanism
+   - SocialShareService integration
+
+2. Backend Services
+   - Basic TwitterService setup
+   - Test endpoint for image upload validation
+
+### 🚧 In Progress
+1. Image Upload Flow
+   - Chunked upload for large files
+   - Progress tracking
+   - Rate limiting
+
+### 📋 Pending
+1. Error handling improvements
+2. Monitoring implementation
+3. E2E testing
 
 ## Architecture
 
-### 1. Service Layer
+### Frontend Layer
 ```typescript
-// services/twitter-media.service.ts
+interface TwitterShareOptions {
+  text: string;
+  url: string;
+  image?: Blob;
+}
+
+interface TwitterShareResult {
+  success: boolean;
+  imageUrl?: string;
+  url?: string;
+  error?: Error;
+}
+```
+
+### Backend Layer
+```typescript
+interface TwitterConfig {
+  apiKey: string;
+  apiSecret: string;
+  accessToken: string;
+  accessSecret: string;
+}
+
 interface TwitterMediaUploadResponse {
   media_id: string;
   expires_after_secs: number;
 }
-
-interface TwitterMediaStatus {
-  state: 'pending' | 'in_progress' | 'failed' | 'succeeded';
-  progress_percent?: number;
-  error?: {
-    code: number;
-    message: string;
-  };
-}
-
-class TwitterMediaService {
-  private static CHUNK_SIZE = 1024 * 1024; // 1MB chunks
-  private static MAX_RETRIES = 3;
-  private static BASE_DELAY = 1000; // 1 second
-
-  async uploadMedia(imageUrl: string): Promise<string> {
-    // 1. Get image from Cloudinary
-    const imageData = await this.fetchImageFromCloudinary(imageUrl);
-    
-    // 2. Initialize upload
-    const { media_id } = await this.initUpload(imageData.size, imageData.type);
-    
-    // 3. Upload chunks if needed
-    if (imageData.size > this.CHUNK_SIZE) {
-      await this.uploadChunks(media_id, imageData);
-    } else {
-      await this.uploadSingle(media_id, imageData);
-    }
-    
-    // 4. Finalize and wait for processing
-    await this.finalizeUpload(media_id);
-    await this.waitForProcessing(media_id);
-    
-    return media_id;
-  }
-}
 ```
 
-### 2. Integration Layer
-```typescript
-// services/share.service.ts
-class ShareService {
-  private twitterMedia: TwitterMediaService;
-  
-  async shareToTwitter(options: ShareOptions): Promise<ShareResult> {
-    try {
-      let mediaId: string | undefined;
-      
-      if (options.imageUrl) {
-        mediaId = await this.twitterMedia.uploadMedia(options.imageUrl);
-      }
-      
-      const tweetParams = new URLSearchParams({
-        text: options.text,
-        url: options.url
-      });
-      
-      if (mediaId) {
-        tweetParams.append('media_ids', mediaId);
-      }
-      
-      window.open(
-        `https://twitter.com/intent/tweet?${tweetParams.toString()}`,
-        '_blank'
-      );
-      
-      return { success: true };
-    } catch (error) {
-      // Fallback to text-only tweet
-      return this.fallbackShare(options);
-    }
-  }
-}
-```
+## API References
+
+### Twitter API v2
+- [Media Upload](https://developer.twitter.com/en/docs/twitter-api/v1/media/upload-media/api-reference/post-media-upload)
+  - Endpoint: `https://upload.twitter.com/1.1/media/upload.json`
+  - Max file size: 5MB (images)
+  - Supported formats: PNG, JPEG, GIF
+  - Rate limits: 300 requests/3 hours
+
+- [Create Tweet](https://developer.twitter.com/en/docs/twitter-api/tweets/manage-tweets/api-reference/post-tweets)
+  - Endpoint: `https://api.twitter.com/2/tweets`
+  - Media attachment limits: 4 per tweet
+  - Text limit: 280 characters
+
+### Cloudinary API
+- [Upload API](https://cloudinary.com/documentation/image_upload_api_reference)
+  - Max file size: 10MB (free plan)
+  - Transformations: `w_1200,h_675,c_fill,g_center`
+  - Twitter optimization params: `q_auto,f_auto`
 
 ## Error Handling Strategy
 
-1. **Network Errors**
+### Network Errors
 ```typescript
 private async withRetry<T>(
   operation: () => Promise<T>,
-  retries = this.MAX_RETRIES
+  options: RetryOptions = DEFAULT_RETRY_OPTIONS
 ): Promise<T> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
     try {
       return await operation();
     } catch (error) {
-      if (attempt === retries) throw error;
-      
-      const delay = this.BASE_DELAY * Math.pow(2, attempt - 1);
+      if (attempt === options.maxAttempts) throw error;
+      const delay = Math.min(
+        options.baseDelay * Math.pow(2, attempt - 1),
+        options.maxDelay
+      );
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -106,70 +103,67 @@ private async withRetry<T>(
 }
 ```
 
-2. **API Errors**
+### Rate Limiting
 ```typescript
-private handleApiError(error: any): never {
-  if (error.response?.status === 429) {
-    throw new RateLimitError('Twitter API rate limit exceeded');
+interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+}
+
+class RateLimiter {
+  private requests: number = 0;
+  private windowStart: number = Date.now();
+
+  checkLimit(): boolean {
+    const now = Date.now();
+    if (now - this.windowStart > this.windowMs) {
+      this.reset();
+      return true;
+    }
+    return this.requests < this.maxRequests;
   }
-  
-  throw new TwitterApiError(
-    error.response?.data?.error || 'Twitter API error',
-    error.response?.status
-  );
 }
 ```
 
-## Testing Plan
+## Testing Strategy
 
-1. **Unit Tests**
+### Unit Tests
+- Service layer mocking
+- Error handling scenarios
+- Rate limit behavior
+
+### Integration Tests
+- Cloudinary upload flow
+- Twitter API interaction
+- Error recovery
+
+### E2E Tests
+- Complete share flow
+- Image optimization
+- User feedback
+
+## Monitoring Plan
+
+### Metrics to Track
+1. Upload Success Rate
+2. API Response Times
+3. Error Rates by Type
+4. Rate Limit Usage
+5. Image Optimization Stats
+
+### Logging
 ```typescript
-describe('TwitterMediaService', () => {
-  describe('uploadMedia', () => {
-    it('handles large files with chunked upload', async () => {
-      // Test implementation
-    });
-    
-    it('retries on network failure', async () => {
-      // Test implementation
-    });
-    
-    it('respects rate limits', async () => {
-      // Test implementation
-    });
-  });
-});
+interface TwitterLogEvent {
+  type: 'upload' | 'share' | 'error';
+  duration: number;
+  success: boolean;
+  errorType?: string;
+  retryCount?: number;
+}
 ```
-
-2. **Integration Tests**
-```typescript
-describe('ShareService Twitter Integration', () => {
-  it('successfully uploads and shares media', async () => {
-    // Test implementation
-  });
-  
-  it('falls back to text-only on error', async () => {
-    // Test implementation
-  });
-});
-```
-
-## API References
-- [Media Upload API](https://developer.x.com/en/docs/x-api/v1/media/upload-media/api-reference/post-media-upload)
-- [Media Best Practices](https://developer.x.com/en/docs/x-api/v1/media/upload-media/uploading-media/media-best-practices)
-- [Upload Tutorial](https://developer.x.com/en/docs/tutorials/uploading-media)
-- [Media Metadata](https://developer.x.com/en/docs/x-api/v1/media/upload-media/api-reference/post-media-metadata-create)
-- [Upload INIT](https://developer.x.com/en/docs/x-api/v1/media/upload-media/api-reference/post-media-upload-init)
 
 ## Next Steps
-1. Implement TwitterMediaService
-2. Add authentication handling
-3. Set up rate limiting
-4. Add monitoring
-5. Implement fallback strategies
-
-Would you like me to:
-1. Start with the TwitterMediaService implementation?
-2. Focus on the authentication setup?
-3. Create the error handling utilities?
-4. Something else? 
+1. Implement chunked upload
+2. Add comprehensive monitoring
+3. Complete E2E tests
+4. Add user feedback mechanisms 

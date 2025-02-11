@@ -11,6 +11,11 @@ interface Environment {
     cloudName: string;
     uploadPreset: string;
   };
+  twitter?: {
+    clientId?: string;
+    callbackUrl?: string;
+  };
+  apiUrl: string;
 }
 
 export const environment: Environment = {
@@ -25,7 +30,12 @@ export const environment: Environment = {
   cloudinary: {
     cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '',
     uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || ''
-  }
+  },
+  twitter: {
+    clientId: import.meta.env.VITE_TWITTER_CLIENT_ID,
+    callbackUrl: import.meta.env.VITE_TWITTER_CALLBACK_URL
+  },
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000'
 };
 
 export default environment; 

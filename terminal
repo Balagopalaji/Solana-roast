@@ -1,0 +1,5 @@
+# 1. Start the development environment with ngrok
+npm run dev:ngrok
+
+# 2. When ngrok starts, copy the HTTPS URL
+# Example: https://abc123.ngrok-free.app 

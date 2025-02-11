@@ -11,7 +11,11 @@
     "build": "npm run build --workspaces",
     "test": "npm run test -w frontend",
     "lint": "npm run lint --workspaces",
-    "verify": "npm run verify -w packages/backend"
+    "verify": "npm run verify -w packages/backend",
+    "dev:ngrok": "sh ./scripts/dev.sh",
+    "update:ngrok": "ts-node --project scripts/tsconfig.json ./scripts/update-ngrok-urls.ts",
+    "predev": "kill $(lsof -t -i:3000) 2>/dev/null || true && kill $(lsof -t -i:5173) 2>/dev/null || true",
+    "ngrok:cleanup": "pkill -f ngrok || true"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

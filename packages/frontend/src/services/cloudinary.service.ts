@@ -13,6 +13,18 @@ interface UploadResponse {
   public_id: string;
 }
 
+// Add Twitter-specific config
+interface CloudinaryTwitterConfig extends CloudinaryConfig {
+  twitter: {
+    maxFileSize: number;  // 5MB limit
+    dimensions: {
+      width: number;      // 1200px
+      height: number;     // 675px
+    };
+    allowedFormats: string[];
+  };
+}
+
 class CloudinaryError extends Error {
   constructor(message: string, public readonly code?: string) {
     super(message);
@@ -21,11 +33,11 @@ class CloudinaryError extends Error {
 }
 
 class CloudinaryService {
-  private config: CloudinaryConfig;
+  private config: CloudinaryTwitterConfig;
   private uploadCount: number = 0;
   private lastUploadReset: number = Date.now();
 
-  constructor(config: Partial<CloudinaryConfig> = {}) {
+  constructor(config: Partial<CloudinaryTwitterConfig> = {}) {
     if (!environment.cloudinary.cloudName || !environment.cloudinary.uploadPreset) {
       throw new CloudinaryError('Missing required Cloudinary configuration');
     }
@@ -36,6 +48,14 @@ class CloudinaryService {
       maxFileSizeMB: 10,
       allowedFormats: ['png', 'jpg', 'jpeg', 'gif'],
       folder: 'roasts',
+      twitter: {
+        maxFileSize: 5 * 1024 * 1024,
+        dimensions: {
+          width: 1200,
+          height: 675
+        },
+        allowedFormats: ['png', 'jpg', 'jpeg']
+      },
       ...config
     };
   }
@@ -89,8 +109,33 @@ class CloudinaryService {
     }
   }
 
+  async prepareForTwitter(file: Blob): Promise<string> {
+    // Validate Twitter requirements
+    await this.validateTwitterRequirements(file);
+    
+    // Upload with Twitter optimizations
+    const url = await this.uploadImage(file);
+    return this.getTwitterOptimizedUrl(url);
+  }
+
+  private async validateTwitterRequirements(file: Blob): Promise<void> {
+    if (file.size > this.config.twitter.maxFileSize) {
+      throw new CloudinaryError('File exceeds Twitter\'s 5MB limit', 'TWITTER_SIZE_LIMIT');
+    }
+
+    const format = file.type.split('/')[1];
+    if (!this.config.twitter.allowedFormats.includes(format)) {
+      throw new CloudinaryError('Invalid format for Twitter', 'TWITTER_FORMAT');
+    }
+  }
+
   getTwitterOptimizedUrl(url: string): string {
-    return url.replace('/upload/', '/upload/w_1200,h_630,c_fit/');
+    return url.replace(
+      '/upload/',
+      `/upload/w_${this.config.twitter.dimensions.width},` +
+      `h_${this.config.twitter.dimensions.height},` +
+      'c_fill,g_center,q_auto,f_auto/'
+    );
   }
 }
 
