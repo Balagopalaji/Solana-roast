@@ -53,9 +53,9 @@ export class TwitterMediaService {
 
         logger.debug('Upload response:', uploadResponse);
 
-        if (uploadResponse.success && uploadResponse.tweetId) {
+        if (uploadResponse.success && uploadResponse.tweetUrl) {
           logger.info('Successfully shared via API:', uploadResponse);
-          return `https://twitter.com/i/status/${uploadResponse.tweetId}`;
+          return uploadResponse.tweetUrl;
         }
 
         logger.warn('API share failed, falling back to web intent', uploadResponse);

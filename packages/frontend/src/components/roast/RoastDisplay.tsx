@@ -320,6 +320,13 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
             >
               {isSharing ? '⌛ Sharing...' : '📤 Share'}
             </button>
+            <button
+              onClick={handleTwitterShare}
+              disabled={isTwitterSharing}
+              className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in disabled:opacity-50"
+            >
+              {isTwitterSharing ? '⌛ Testing...' : '🧪 Test Dev Tweet'}
+            </button>
             {isTwitterEnabled && (
               <button
                 onClick={handleTwitterShare}
@@ -333,8 +340,8 @@ export const RoastDisplay: React.FC<RoastDisplayProps> = ({
           {twitterShareError && (
             <div className="mt-2 text-red-500 text-sm">
               {twitterShareError}
-          </div>
-        )}
+            </div>
+          )}
         </div>
       </div>
       {toastMessage && (

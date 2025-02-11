@@ -14,7 +14,8 @@ jest.mock('../../../config/environment', () => ({
       apiKey: 'test-key',
       apiSecret: 'test-secret',
       accessToken: 'test-token',
-      accessSecret: 'test-secret'
+      accessSecret: 'test-secret',
+      appUrl: 'https://solanaroast.lol'
     }
   }
 }));
@@ -27,6 +28,7 @@ describe('Twitter Services', () => {
   beforeEach(() => {
     // Reset mocks
     jest.clearAllMocks();
+    jest.useFakeTimers();
 
     // Mock event bus
     mockPublishEvent = jest.fn();
@@ -36,6 +38,10 @@ describe('Twitter Services', () => {
 
     // Create service instance
     devService = new DevTwitterService({ eventBus: mockEventBus });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('DevTwitterService', () => {
@@ -60,6 +66,9 @@ describe('Twitter Services', () => {
             protected: false,
             verified: true
           })
+        },
+        v2: {
+          tweet: jest.fn().mockResolvedValue({ data: { id: 'tweet-123' } })
         }
       };
 
@@ -187,6 +196,180 @@ describe('Twitter Services', () => {
 
       await expect(devService.initialize())
         .resolves.toBe(false);
+    });
+
+    // New tests for retry functionality
+    describe('Retry Mechanism', () => {
+      it('should retry on rate limit errors', async () => {
+        const mockClient = {
+          v1: {
+            uploadMedia: jest.fn()
+              .mockRejectedValueOnce({ code: 429, message: 'Rate limit' })
+              .mockRejectedValueOnce({ code: 429, message: 'Rate limit' })
+              .mockResolvedValueOnce('media-123'),
+            verifyCredentials: jest.fn().mockResolvedValue({
+              screen_name: 'test',
+              id_str: '123',
+              protected: false,
+              verified: true
+            })
+          },
+          v2: {
+            tweet: jest.fn().mockResolvedValue({ data: { id: 'tweet-123' } })
+          }
+        };
+
+        MockedTwitterApi.mockImplementation(() => mockClient as any);
+
+        // Initialize service
+        await devService.initialize();
+
+        // Mock fetch
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          headers: new Headers({ 'content-type': 'image/jpeg' }),
+          arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+        });
+
+        // Test sharing with media
+        const result = await devService.shareWithMedia(
+          'Test tweet',
+          'https://res.cloudinary.com/test/image.jpg',
+          'wallet123'
+        );
+
+        expect(mockClient.v1.uploadMedia).toHaveBeenCalledTimes(3);
+        expect(result).toBe('https://twitter.com/i/web/status/tweet-123');
+
+        // Verify retry delays
+        expect(jest.getTimerCount()).toBe(0);
+        jest.runAllTimers();
+      });
+
+      it('should not retry on authentication errors', async () => {
+        const mockClient = {
+          v1: {
+            uploadMedia: jest.fn().mockRejectedValue({
+              code: 401,
+              message: 'Unauthorized'
+            }),
+            verifyCredentials: jest.fn().mockResolvedValue({
+              screen_name: 'test',
+              id_str: '123',
+              protected: false,
+              verified: true
+            })
+          }
+        };
+
+        MockedTwitterApi.mockImplementation(() => mockClient as any);
+
+        // Initialize service
+        await devService.initialize();
+
+        // Mock fetch
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          headers: new Headers({ 'content-type': 'image/jpeg' }),
+          arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+        });
+
+        // Test sharing with media
+        await expect(devService.shareWithMedia(
+          'Test tweet',
+          'https://res.cloudinary.com/test/image.jpg',
+          'wallet123'
+        )).rejects.toThrow('Twitter authentication failed');
+
+        expect(mockClient.v1.uploadMedia).toHaveBeenCalledTimes(1);
+      });
+
+      it('should handle API access level errors', async () => {
+        const mockClient = {
+          v1: {
+            uploadMedia: jest.fn().mockRejectedValue({
+              code: 403,
+              data: {
+                errors: [{ code: 453 }]
+              },
+              message: 'Access level insufficient'
+            }),
+            verifyCredentials: jest.fn().mockResolvedValue({
+              screen_name: 'test',
+              id_str: '123',
+              protected: false,
+              verified: true
+            })
+          }
+        };
+
+        MockedTwitterApi.mockImplementation(() => mockClient as any);
+
+        // Initialize service
+        await devService.initialize();
+
+        // Mock fetch
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          headers: new Headers({ 'content-type': 'image/jpeg' }),
+          arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+        });
+
+        // Test sharing with media
+        await expect(devService.shareWithMedia(
+          'Test tweet',
+          'https://res.cloudinary.com/test/image.jpg',
+          'wallet123'
+        )).rejects.toThrow('Twitter API access level insufficient');
+
+        expect(mockClient.v1.uploadMedia).toHaveBeenCalledTimes(1);
+      });
+
+      it('should provide accurate status including retry information', async () => {
+        const mockClient = {
+          v1: {
+            uploadMedia: jest.fn()
+              .mockRejectedValueOnce({ code: 429, message: 'Rate limit' })
+              .mockRejectedValueOnce({ code: 429, message: 'Rate limit' })
+              .mockRejectedValue({ code: 429, message: 'Rate limit' }),
+            verifyCredentials: jest.fn().mockResolvedValue({
+              screen_name: 'test',
+              id_str: '123',
+              protected: false,
+              verified: true
+            })
+          }
+        };
+
+        MockedTwitterApi.mockImplementation(() => mockClient as any);
+
+        // Initialize service
+        await devService.initialize();
+
+        // Mock fetch
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          headers: new Headers({ 'content-type': 'image/jpeg' }),
+          arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+        });
+
+        // Attempt sharing (will fail after max retries)
+        try {
+          await devService.shareWithMedia(
+            'Test tweet',
+            'https://res.cloudinary.com/test/image.jpg',
+            'wallet123'
+          );
+        } catch (error) {
+          // Expected to fail
+        }
+
+        // Check status
+        const status = await devService.getStatus();
+        expect(status.retryCount).toBe(3);
+        expect(status.lastError).toBe('Rate limit');
+        expect(status.canRetry).toBe(false);
+      });
     });
   });
 }); 

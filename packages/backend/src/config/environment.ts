@@ -12,13 +12,25 @@ export function validateEnv() {
     'PORT',
     'CORS_ORIGIN',
     'OPENAI_API_KEY',
-    'SOLANA_RPC_URL',
-    // Add if Twitter is required:
-    // 'TWITTER_API_KEY',
-    // 'TWITTER_API_SECRET',
-    // 'TWITTER_ACCESS_TOKEN',
-    // 'TWITTER_ACCESS_SECRET'
+    'SOLANA_RPC_URL'
   ];
+
+  // Add Twitter validation in development mode
+  if (process.env.NODE_ENV === 'development') {
+    const twitterVars = [
+      'TWITTER_API_KEY',
+      'TWITTER_API_SECRET',
+      'TWITTER_ACCESS_TOKEN',
+      'TWITTER_ACCESS_SECRET'
+    ];
+
+    for (const name of twitterVars) {
+      if (!process.env[name]) {
+        console.warn(`⚠️  Warning: Missing Twitter environment variable: ${name}`);
+        console.warn('Twitter integration will be disabled until all credentials are provided');
+      }
+    }
+  }
 
   for (const name of required) {
     if (!process.env[name]) {

@@ -60,23 +60,52 @@ router.post('/tweet', async (req, res) => {
   try {
     const { imageUrl, text, url } = req.body;
     
-    // First download the image to our server
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+    // Get detailed status
+    const status = await twitterService.getStatus();
+    
+    if (!twitterService.isInitialized()) {
+      logger.error('Twitter service not initialized:', status);
+      
+      // Special handling for development mode
+      if (process.env.NODE_ENV === 'development') {
+        return res.status(503).json({ 
+          error: 'Twitter service not properly initialized',
+          success: false,
+          details: {
+            status,
+            message: 'Development Mode Setup Required:',
+            steps: [
+              '1. Copy the ngrok URL from the console',
+              '2. Go to Twitter Developer Portal: https://developer.twitter.com/en/portal/dashboard',
+              '3. Update Website URL to: https://{ngrok-id}.ngrok-free.app',
+              '4. Update Callback URL to: https://{ngrok-id}.ngrok-free.app/api/twitter/callback',
+              '5. Restart the server after updating the URLs'
+            ]
+          }
+        });
+      }
+      
+      // Production error
+      return res.status(503).json({ 
+        error: 'Twitter service not properly initialized',
+        success: false,
+        details: {
+          status,
+          message: 'Please check Twitter API credentials and permissions'
+        }
+      });
     }
-    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
 
     // Then use the service to handle the Twitter API calls
-    const tweetId = await twitterService.uploadImageAndTweet(
-      imageBuffer,
-      text || '🔥',
-      url
+    const tweetUrl = await twitterService.shareWithMedia(
+      `${text || '🔥'}\n\nRoast your wallet at ${url} 🔥`,
+      imageUrl,
+      'dev-account' // Using dev account for now
     );
 
     return res.json({ 
       success: true,
-      tweetId 
+      tweetUrl 
     });
   } catch (error) {
     logger.error('Error posting tweet:', error);
