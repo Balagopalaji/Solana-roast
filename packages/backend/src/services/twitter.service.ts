@@ -1,6 +1,7 @@
 import { TwitterApi } from 'twitter-api-v2';
 import logger from '../utils/logger';
 import { environment } from '../config/environment';
+import { devTwitterService } from './twitter';
 
 interface MediaValidationOptions {
   maxSizeBytes: number;        // 5MB Twitter limit
@@ -495,4 +496,5 @@ export class TwitterService {
   }
 }
 
-export const twitterService = TwitterService.getInstance(); 
+// Re-export the dev Twitter service instance
+export const twitterService = devTwitterService; 

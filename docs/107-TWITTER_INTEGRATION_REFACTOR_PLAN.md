@@ -43,6 +43,27 @@ class TwitterService {
 }
 ```
 
+### Development Testing Strategy
+During the refactoring process, we've added a dedicated test button ("🧪 Test Dev Tweet") in the UI to ensure the current dev account functionality remains working. This button:
+1. Uses the existing implementation
+2. Runs alongside the new implementation
+3. Helps verify the dev account functionality remains intact
+4. Provides a quick way to test the original functionality
+
+Location: `packages/frontend/src/components/roast/RoastDisplay.tsx`
+```typescript
+// Test button implementation
+<button
+  onClick={handleTwitterShare}
+  disabled={isTwitterSharing}
+  className="px-4 py-2 bg-win95-gray shadow-win95-out hover:shadow-win95-in active:shadow-win95-in disabled:opacity-50"
+>
+  {isTwitterSharing ? '⌛ Testing...' : '🧪 Test Dev Tweet'}
+</button>
+```
+
+This test button should remain in place until the refactoring is complete and thoroughly tested.
+
 ## Refactoring Goals
 
 1. **Preserve Dev Account Functionality**

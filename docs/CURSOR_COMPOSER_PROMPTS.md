@@ -3,6 +3,39 @@
 ## Introduction
 This guide provides a sequence of focused prompts for implementing the Twitter integration refactor plan. Each prompt is designed to be self-contained while building upon previous work.
 
+## ⚠️ GLOBAL REMINDERS - READ BEFORE EACH PROMPT
+Before implementing ANY prompt or making ANY changes:
+
+1. **Role**: Always act as a senior full-stack engineer with extensive TypeScript and Twitter API experience
+2. **Documentation**: 
+   - Study this `CURSOR_COMPOSER_PROMPTS.md` document thoroughly
+   - Review all relevant documentation in the `/docs` directory
+   - Consult Twitter API documentation for best practices
+
+3. **Codebase Review**:
+   - Thoroughly review the existing codebase before making changes
+   - Understand the current implementation and its dependencies
+   - Check for similar patterns in the codebase
+   - Verify type safety and error handling patterns
+
+4. **Critical Requirements**:
+   - NEVER break existing functionality
+   - Preserve the dev account sharing functionality
+   - Maintain the ngrok development setup
+   - Keep the environment structure intact
+   - Handle errors gracefully with proper logging
+   - Consider security implications
+   - Write comprehensive tests
+
+5. **Before Completing**:
+   - Verify all existing functionality still works
+   - Run all tests
+   - Check for type safety
+   - Validate error handling
+   - Review security implications
+   - Test backward compatibility
+   - Validate API compliance
+
 ## Essential References
 - Refactor Plan: `docs/107-TWITTER_INTEGRATION_REFACTOR_PLAN.md`
 - Twitter API Documentation:
@@ -851,6 +884,11 @@ describe('Storage Services', () => {
 
 #### Prompt 0: Infrastructure Setup
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 As a senior full-stack engineer, implement the core infrastructure components that will support both the Twitter integration and future features:
 
 1. Set up the event system
@@ -869,12 +907,12 @@ IMPORTANT:
 
 #### Prompt 1: Base Service Implementation
 ```prompt
-As a senior full-stack engineer, implement the BaseTwitterService abstract class.
-
 BEFORE STARTING:
-- Review the Global Reminders section above
+- Review the Global Reminders section at the top of this document
 - Understand the ngrok development setup
 - Check the current environment structure
+
+As a senior full-stack engineer, implement the BaseTwitterService abstract class.
 
 IMPORTANT REMINDERS:
 - Current dev account functionality must be preserved
@@ -899,6 +937,11 @@ Reference:
 
 #### Prompt 2: Core Utilities
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Create the following utility classes in packages/backend/src/services/twitter/utils/:
 1. TwitterRateLimiter (basic version)
 2. TwitterErrorHandler
@@ -911,6 +954,11 @@ These will be enhanced later but we need the basic structure for the services to
 
 #### Prompt 3: Dev Service Implementation
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 As a senior full-stack engineer, implement the DevTwitterService class.
 
 CRITICAL: This implementation preserves our existing Twitter functionality!
@@ -936,6 +984,11 @@ Reference:
 
 #### Prompt 4: Integration Test Setup
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Create integration tests for the DevTwitterService to ensure:
 1. All existing functionality works as expected
 2. Error handling works correctly
@@ -948,6 +1001,11 @@ This will serve as our safety net for future changes.
 
 #### Prompt 5: Token Storage
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Implement the secure token storage system:
 1. Create the SecureTokenStorage class
 2. Set up encryption service integration
@@ -959,6 +1017,11 @@ Reference section 4.7 "Enhanced Security Implementation" from the refactor plan.
 
 #### Prompt 6: Session Management
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Implement the session management system:
 1. Create TwitterSessionManager
 2. Set up session integration
@@ -972,6 +1035,11 @@ Use section 4.2 "Session Management Integration" as reference.
 
 #### Prompt 7: Enhanced Rate Limiting
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Upgrade the rate limiting system:
 1. Implement Redis integration
 2. Add distributed rate limiting
@@ -983,6 +1051,11 @@ Reference section 4.3 "Enhanced Rate Limiting" from the refactor plan.
 
 #### Prompt 8: Media Processing
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Implement the enhanced media processing:
 1. Set up Cloudinary integration
 2. Implement chunked upload
@@ -996,6 +1069,11 @@ Use sections 4.1 and 4.4 from the refactor plan.
 
 #### Prompt 9: Metrics and Monitoring
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Implement the metrics and monitoring system:
 1. Set up metrics tracking
 2. Implement alert system
@@ -1007,6 +1085,11 @@ Reference section 4.6 "Metrics and Monitoring" from the refactor plan.
 
 #### Prompt 10: Feature Flags
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Implement the feature flag system:
 1. Set up environment configuration
 2. Add feature flag definitions
@@ -1020,6 +1103,11 @@ Use section 4.5 "Feature Flag Integration" as reference.
 
 #### Prompt 11: Frontend Components
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Update the frontend components:
 1. Modify RoastDisplay component
 2. Add user authentication UI
@@ -1031,11 +1119,56 @@ Ensure smooth user experience during the authentication flow.
 
 #### Prompt 12: Error Handling
 ```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
 Enhance error handling across the application:
 1. Implement consistent error messages
 2. Add retry mechanisms
 3. Improve error recovery
 4. Update error documentation
+```
+
+### Phase 7: Documentation and Process Recording
+
+#### Prompt 13: Implementation Documentation
+```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Understand the ngrok development setup
+- Check the current environment structure
+
+As a senior full-stack engineer, document the complete implementation process:
+
+1. Create a detailed implementation log:
+   - Document each major change and decision
+   - Include rationale for architectural choices
+   - Note any challenges encountered and solutions
+   - Record performance considerations
+
+2. Update technical documentation:
+   - Update API documentation
+   - Document new endpoints and services
+   - Add sequence diagrams for auth flows
+   - Document testing procedures
+
+3. Create migration guides:
+   - Document steps for future Twitter API migrations
+   - Include rollback procedures
+   - Add troubleshooting guides
+
+4. Add monitoring documentation:
+   - Document metrics and alerts
+   - Add dashboard explanations
+   - Include incident response procedures
+
+IMPORTANT:
+- Include code snippets and examples
+- Add diagrams where helpful
+- Document both dev and user authentication flows
+- Include testing procedures
 ```
 
 ## Best Practices for Composer Agent
@@ -1063,6 +1196,124 @@ Enhance error handling across the application:
 3. Document configuration requirements
 4. Maintain changelog
 
+### Testing and Verification
+1. Use the "🧪 Test Dev Tweet" button in RoastDisplay to verify dev account functionality
+2. This button is specifically added to ensure the original implementation remains working
+3. Test both the new and existing functionality in parallel
+4. Use the test button as a reference for expected behavior
+
+Example test verification:
+```typescript
+// In your implementation, verify both buttons work:
+it('should maintain dev account functionality alongside new implementation', async () => {
+  render(<RoastDisplay roastData={mockRoastData} />);
+  
+  // Test dev account button
+  const devButton = screen.getByText(/🧪 Test Dev Tweet/);
+  await userEvent.click(devButton);
+  expect(socialShareService.shareToTwitter).toHaveBeenCalledWith(
+    expect.objectContaining({ shareMethod: 'dev' })
+  );
+  
+  // Test new implementation
+  const userButton = screen.getByText(/🐦 Tweet/);
+  await userEvent.click(userButton);
+  expect(socialShareService.shareToTwitter).toHaveBeenCalledWith(
+    expect.objectContaining({ shareMethod: 'user' })
+  );
+});
+```
+
+### Documentation Strategy
+1. **Per-Prompt Documentation**
+   ```typescript
+   // At the end of each prompt implementation:
+   await documentImplementation({
+     prompt: currentPrompt,
+     changes: {
+       files: changedFiles,
+       services: newOrModifiedServices,
+       tests: addedTests
+     },
+     decisions: architecturalDecisions,
+     challenges: {
+       encountered: issuesFound,
+       solutions: implementedSolutions
+     }
+   });
+   ```
+
+2. **Incremental Architecture Records**
+   - Document each architectural decision
+   - Record the context of each decision
+   - Note alternatives considered
+   - Explain why the chosen solution was selected
+
+3. **Progress Documentation**
+   ```typescript
+   // Example progress documentation
+   interface ImplementationProgress {
+     phase: string;
+     prompt: string;
+     completedTasks: string[];
+     pendingTasks: string[];
+     testResults: TestResult[];
+     architecturalChanges: ArchitecturalDecision[];
+     nextSteps: string[];
+   }
+   ```
+
+4. **Review Checkpoints**
+   After each phase:
+   - Document completed functionality
+   - Record test coverage
+   - Note any technical debt
+   - Update migration guides
+   - Review and update security documentation
+
+Example documentation entry:
+```markdown
+## Implementation Log: Phase 2 - Dev Service Migration
+
+### Changes Made
+- Moved TwitterService to DevTwitterService
+- Added BaseTwitterService abstraction
+- Implemented rate limiting
+- Added comprehensive tests
+
+### Architectural Decisions
+1. **Service Separation**
+   - Decision: Split into Base/Dev/User services
+   - Context: Need to preserve dev functionality
+   - Alternatives considered:
+     - Single service with mode switch
+     - Feature flag-based implementation
+   - Rationale: Cleaner separation, easier testing
+
+2. **Rate Limiting**
+   - Implementation: Redis-based
+   - Reason: Scalable, supports distributed setup
+   - Alternative considered: In-memory rate limiting
+   - Why rejected: Wouldn't work in distributed environment
+
+### Challenges & Solutions
+1. **Challenge**: Maintaining state during migration
+   Solution: Implemented parallel services
+   
+2. **Challenge**: Rate limit sharing
+   Solution: Created shared Redis-based limiter
+
+### Test Coverage
+- Unit tests: 94%
+- Integration tests: 87%
+- E2E tests: Added Twitter flow
+
+### Next Steps
+1. Review error handling
+2. Add monitoring
+3. Update documentation
+```
+
 ## Progress Tracking
 
 Use this section to track implementation progress:
@@ -1070,9 +1321,11 @@ Use this section to track implementation progress:
 - [ ] Phase 1: Foundation Setup
   - [ ] Base Service Implementation
   - [ ] Core Utilities
+  - [ ] Phase 1 Documentation
 - [ ] Phase 2: Dev Service Migration
   - [ ] Dev Service Implementation
   - [ ] Integration Tests
+  - [ ] Phase 2 Documentation
 - [ ] Phase 3: User Authentication
   - [ ] Token Storage
   - [ ] Session Management
@@ -1085,6 +1338,11 @@ Use this section to track implementation progress:
 - [ ] Phase 6: Frontend Integration
   - [ ] Frontend Components
   - [ ] Error Handling
+- [ ] Phase 7: Documentation
+  - [ ] Implementation Log
+  - [ ] Technical Documentation
+  - [ ] Migration Guides
+  - [ ] Monitoring Documentation
 
 ## Notes for Review
 - Each phase should be reviewed before moving to the next
