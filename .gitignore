@@ -28,4 +28,4 @@ coverage/
 
 # Misc
 .cache/
-.temp/ 
+.temp/ *.timestamp-*.mjs
