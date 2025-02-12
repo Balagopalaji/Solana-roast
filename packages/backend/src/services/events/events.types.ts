@@ -12,6 +12,9 @@ export enum EventType {
   TWITTER_AUTH_STARTED = 'TWITTER_AUTH_STARTED',
   TWITTER_AUTH_COMPLETED = 'TWITTER_AUTH_COMPLETED',
   TWITTER_AUTH_FAILED = 'TWITTER_AUTH_FAILED',
+  TWITTER_AUTH_SUCCESS = 'twitter:auth:success',
+  TWITTER_AUTH_FAILURE = 'twitter:auth:failure',
+  TWITTER_AUTH_REVOKED = 'twitter:auth:revoked',
   
   // Analytics Events
   WALLET_ROASTED = 'WALLET_ROASTED',

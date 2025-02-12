@@ -1,15 +1,29 @@
 import { openai } from '../config/environment';
 import { SolanaService } from './solana.service';
-import { RoastResponse, WalletData } from '../types';
+import { RoastResponse } from '../types/roast';
 import { imgflipService } from './imgflip.service';
 import logger from '../utils/logger';
 import { environment } from '../config/environment';
+import { RoastStorage } from './storage/roast.storage';
 
 export class RoastService {
-  constructor(private solanaService: SolanaService) {}
+  private storage: RoastStorage;
+
+  constructor(
+    private solanaService: SolanaService
+  ) {
+    this.storage = new RoastStorage();
+  }
 
   async generateRoast(walletAddress: string): Promise<RoastResponse> {
     try {
+      // Check cache first
+      const cachedRoast = await this.storage.getRoast(walletAddress);
+      if (cachedRoast) {
+        logger.info('Returning cached roast for wallet:', walletAddress);
+        return cachedRoast;
+      }
+
       // Add connection test
       logger.info('Testing backend connectivity...');
       try {
@@ -102,13 +116,22 @@ export class RoastService {
           memeUrl = environment.fallbacks.memeUrl || '';
         }
 
-        return {
+        // Create roast data
+        const roastData: RoastResponse = {
           roast: response.roast,
           meme_url: memeUrl,
           wallet: walletData,
           meme_top_text: response.meme_top_text,
-          meme_bottom_text: response.meme_bottom_text
+          meme_bottom_text: response.meme_bottom_text,
+          timestamp: Date.now(),
+          walletAddress,
+          createdAt: Date.now()
         };
+
+        // Store in cache
+        await this.storage.storeRoast(walletAddress, roastData);
+
+        return roastData;
       } catch (parseError) {
         logger.error('Failed to parse OpenAI response:', responseText);
         throw new Error('Invalid response format from OpenAI');
@@ -117,5 +140,9 @@ export class RoastService {
       logger.error('Error in generateRoast:', error);
       throw error;
     }
+  }
+
+  async getRecentRoasts(limit: number = 10): Promise<RoastResponse[]> {
+    return this.storage.listRecentRoasts(limit);
   }
 } 

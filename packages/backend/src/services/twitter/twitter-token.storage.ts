@@ -8,6 +8,8 @@ export interface TwitterTokenData {
   expiresAt?: number;
   userId: string;
   username: string;
+  codeVerifier?: string;
+  createdAt?: number;
 }
 
 export class TwitterTokenStorage extends SecureStorage<TwitterTokenData> {

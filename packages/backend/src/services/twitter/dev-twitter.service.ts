@@ -33,12 +33,7 @@ export class DevTwitterService extends BaseTwitterService {
           logger.warn('- TWITTER_ACCESS_SECRET');
           return;
         }
-        logger.error('Missing Twitter API credentials', {
-          hasApiKey: !!apiKey,
-          hasApiSecret: !!apiSecret,
-          hasAccessToken: !!accessToken,
-          hasAccessSecret: !!accessSecret
-        });
+        logger.error('Missing Twitter API credentials');
         throw new Error('Missing Twitter API credentials');
       }
 
@@ -49,16 +44,33 @@ export class DevTwitterService extends BaseTwitterService {
         accessSecret: accessSecret,
       });
 
-      // In development mode, skip permissions check until ngrok is ready
+      // In development mode, check ngrok status
       if (process.env.NODE_ENV === 'development') {
+        try {
+          const ngrokResponse = await fetch('http://localhost:4040/api/tunnels');
+          if (!ngrokResponse.ok) {
+            logger.warn('⚠️  Ngrok tunnel appears to be down. Please:');
+            logger.warn('1. Start ngrok: nohup ngrok http 5173 &');
+            logger.warn('2. Wait for .env.development to update');
+            logger.warn('3. Restart the development server');
+          } else {
+            const tunnels = await ngrokResponse.json() as { tunnels: Array<{ public_url: string }> };
+            const currentUrl = tunnels.tunnels[0]?.public_url;
+            if (currentUrl) {
+              logger.info('Current ngrok tunnel:', { url: currentUrl });
+              logger.info('Please verify this matches Twitter Developer Portal:');
+              logger.info('- Website URL:', currentUrl);
+              logger.info('- Callback URL:', `${currentUrl}/api/twitter/callback`);
+            } else {
+              logger.warn('⚠️  No active ngrok tunnels found');
+            }
+          }
+        } catch (error) {
+          logger.warn('⚠️  Could not check ngrok status. Tunnel may be down.');
+        }
+
         this.initialized = true;
         logger.info('Dev Twitter client initialized in development mode');
-        logger.info('⚠️  Important: After ngrok starts, you must:');
-        logger.info('1. Copy the ngrok URL from the console');
-        logger.info('2. Update Twitter Developer Portal (https://developer.twitter.com/en/portal/dashboard):');
-        logger.info('   - Website URL: https://{ngrok-id}.ngrok-free.app');
-        logger.info('   - Callback URL: https://{ngrok-id}.ngrok-free.app/api/twitter/callback');
-        logger.info('3. Restart the server after updating the URLs');
         return;
       }
 
@@ -242,5 +254,11 @@ export class DevTwitterService extends BaseTwitterService {
       
       throw new Error(`Failed to post tweet: ${twitterError.message}`);
     }
+  }
+
+  public async quit(): Promise<void> {
+    this.initialized = false;
+    this.client = null;
+    logger.info('Dev Twitter service shut down');
   }
 } 
