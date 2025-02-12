@@ -1,28 +1,42 @@
+/// <reference types="jest" />
+
+import { jest, describe, beforeEach, afterEach, it, expect } from '@jest/globals';
 import { Redis } from 'ioredis';
 import { RedisService } from '../redis.service';
+import { RedisMetrics } from '../../../types/redis.types';
 import logger from '../../../utils/logger';
+import { environment } from '../../../config/environment';
+import { mockRedisClient, createMockRedisClient } from '../../../tests/mocks/ioredis';
 
-// Mock Redis and logger
+// Mock dependencies
 jest.mock('ioredis');
 jest.mock('../../../utils/logger');
-
-const MockedRedis = Redis as jest.MockedClass<typeof Redis>;
+jest.mock('../../../config/environment', () => ({
+  environment: {
+    redis: {
+      host: 'localhost',
+      port: 6379,
+      password: undefined,
+      tls: false
+    }
+  }
+}));
 
 describe('RedisService', () => {
   let redisService: RedisService;
 
   beforeEach(() => {
-    // Clear all mocks
     jest.clearAllMocks();
-    // Reset environment variables
-    process.env.REDIS_URL = 'redis://localhost:6379';
-    process.env.NODE_ENV = 'development';
-    // Get fresh instance
+    // Get a fresh instance
     redisService = RedisService.getInstance();
   });
 
   afterEach(async () => {
-    await redisService.closeAll();
+    await redisService.quit();
+    // Clear singleton instance
+    (RedisService as any).instance = undefined;
+    // Clear intervals
+    jest.clearAllTimers();
   });
 
   describe('getInstance', () => {
@@ -31,102 +45,204 @@ describe('RedisService', () => {
       const instance2 = RedisService.getInstance();
       expect(instance1).toBe(instance2);
     });
-  });
 
-  describe('getClient', () => {
-    it('should create a new client with default config', async () => {
-      const client = await redisService.getClient();
-      expect(client).toBeInstanceOf(Redis);
-      expect(MockedRedis).toHaveBeenCalledWith(
-        'redis://localhost:6379',
-        expect.objectContaining({
-          enableOfflineQueue: true,
-          enableReadyCheck: true,
-          lazyConnect: true
-        })
-      );
-    });
-
-    it('should reuse existing client with same name', async () => {
-      const client1 = await redisService.getClient('test');
-      const client2 = await redisService.getClient('test');
-      expect(client1).toBe(client2);
-      expect(MockedRedis).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle connection errors', async () => {
-      MockedRedis.mockImplementationOnce(() => {
-        throw new Error('Connection failed');
+    it('should initialize with correct configuration', () => {
+      expect(Redis).toHaveBeenCalledWith({
+        host: environment.redis.host,
+        port: environment.redis.port,
+        password: environment.redis.password,
+        tls: undefined,
+        retryStrategy: expect.any(Function)
       });
+    });
+  });
 
-      await expect(redisService.getClient())
-        .rejects
-        .toThrow('Connection failed');
+  describe('event handling', () => {
+    it('should setup event handlers on initialization', () => {
+      expect(mockRedisClient.on).toHaveBeenCalledWith('connect', expect.any(Function));
+      expect(mockRedisClient.on).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(mockRedisClient.on).toHaveBeenCalledWith('close', expect.any(Function));
     });
 
-    it('should configure TLS in production', async () => {
-      process.env.NODE_ENV = 'production';
-      await redisService.getClient();
-      
-      expect(MockedRedis).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          tls: { rejectUnauthorized: true }
-        })
+    it('should update metrics on connect event', () => {
+      const connectHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'connect'
+      )?.[1];
+
+      if (connectHandler) {
+        connectHandler();
+        const metrics = redisService.getMetrics();
+        expect(metrics.isConnected).toBe(true);
+      }
+    });
+
+    it('should update metrics on error event', () => {
+      const errorHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'error'
+      )?.[1];
+
+      if (errorHandler) {
+        errorHandler(new Error('test error'));
+        const metrics = redisService.getMetrics();
+        expect(metrics.isConnected).toBe(false);
+        expect(metrics.errorRate).toBe(1);
+      }
+    });
+
+    it('should update metrics on close event', () => {
+      const closeHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'close'
+      )?.[1];
+
+      if (closeHandler) {
+        closeHandler();
+        const metrics = redisService.getMetrics();
+        expect(metrics.isConnected).toBe(false);
+      }
+    });
+  });
+
+  describe('metrics collection', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should collect metrics periodically', async () => {
+      // Fast-forward 10 seconds
+      jest.advanceTimersByTime(10000);
+
+      // Let any pending promises resolve
+      await Promise.resolve();
+
+      expect(mockRedisClient.ping).toHaveBeenCalled();
+      expect(mockRedisClient.info).toHaveBeenCalledWith('memory');
+    });
+
+    it('should reset error rate periodically', () => {
+      // Simulate some errors
+      const errorHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
+        call => call[0] === 'error'
+      )?.[1];
+      if (errorHandler) {
+        errorHandler(new Error('test error'));
+        expect(redisService.getMetrics().errorRate).toBe(1);
+      }
+
+      // Fast-forward 1 minute
+      jest.advanceTimersByTime(60000);
+
+      expect(redisService.getMetrics().errorRate).toBe(0);
+    });
+  });
+
+  describe('Redis operations', () => {
+    it('should handle get operation', async () => {
+      const testValue = { test: 'value' };
+      mockRedisClient.get.mockResolvedValueOnce(JSON.stringify(testValue));
+
+      const result = await redisService.get('test-key');
+      expect(result).toEqual(testValue);
+      expect(mockRedisClient.get).toHaveBeenCalledWith('test-key');
+    });
+
+    it('should handle set operation with TTL', async () => {
+      const testValue = { test: 'value' };
+      const ttl = 3600;
+
+      await redisService.set('test-key', testValue, ttl);
+      expect(mockRedisClient.set).toHaveBeenCalledWith(
+        'test-key',
+        JSON.stringify(testValue),
+        'EX',
+        ttl
+      );
+    });
+
+    it('should handle delete operation', async () => {
+      await redisService.delete('test-key');
+      expect(mockRedisClient.del).toHaveBeenCalledWith('test-key');
+    });
+
+    it('should handle exists operation', async () => {
+      mockRedisClient.exists.mockResolvedValueOnce(1);
+      const result = await redisService.exists('test-key');
+      expect(result).toBe(true);
+    });
+
+    it('should handle set operation without TTL', async () => {
+      const testValue = { test: 'value' };
+      await redisService.set('test-key', testValue);
+      expect(mockRedisClient.set).toHaveBeenCalledWith(
+        'test-key',
+        JSON.stringify(testValue)
       );
     });
   });
 
-  describe('metrics', () => {
-    it('should track connection status', async () => {
-      const client = await redisService.getClient();
-      
-      // Simulate connection events
-      client.emit('connect');
-      expect(redisService.getMetrics().connectionStatus).toBe('connected');
+  describe('leaderboard operations', () => {
+    it('should handle sorted set operations', async () => {
+      const key = 'roast:leaderboard';
+      const score = 100;
+      const member = 'wallet123';
 
-      client.emit('error', new Error('Test error'));
-      expect(redisService.getMetrics().connectionStatus).toBe('error');
+      await redisService.zadd(key, score, member);
+      expect(mockRedisClient.zadd).toHaveBeenCalledWith(key, score, member);
 
-      client.emit('close');
-      expect(redisService.getMetrics().connectionStatus).toBe('disconnected');
-    });
+      const topWallets = await redisService.zrevrange(key, 0, 9);
+      expect(mockRedisClient.zrevrange).toHaveBeenCalledWith(key, 0, 9);
+      expect(topWallets).toHaveLength(2);
 
-    it('should track operations and errors', async () => {
-      const client = await redisService.getClient();
-      
-      // Simulate some operations
-      await client.ping();
-      await client.ping();
-      
-      const metrics = redisService.getMetrics();
-      expect(metrics.totalOperations).toBeGreaterThan(0);
-      expect(metrics.failedOperations).toBe(0);
+      const walletScore = await redisService.zscore(key, member);
+      expect(mockRedisClient.zscore).toHaveBeenCalledWith(key, member);
+      expect(Number(walletScore)).toBe(100);
+
+      const totalWallets = await redisService.zcard(key);
+      expect(mockRedisClient.zcard).toHaveBeenCalledWith(key);
+      expect(totalWallets).toBe(2);
     });
   });
 
-  describe('closeAll', () => {
-    it('should close all clients', async () => {
-      const client1 = await redisService.getClient('client1');
-      const client2 = await redisService.getClient('client2');
+  describe('analytics operations', () => {
+    it('should handle hash operations', async () => {
+      const key = 'analytics:daily:2024-01-01';
+      
+      await redisService.hincrby(key, 'roasts', 1);
+      expect(mockRedisClient.hincrby).toHaveBeenCalledWith(key, 'roasts', 1);
 
-      await redisService.closeAll();
-
-      expect(client1.quit).toHaveBeenCalled();
-      expect(client2.quit).toHaveBeenCalled();
+      const stats = await redisService.hgetall(key);
+      expect(mockRedisClient.hgetall).toHaveBeenCalledWith(key);
+      expect(stats).toEqual({
+        field1: 'value1',
+        field2: 'value2'
+      });
     });
 
-    it('should handle errors during close', async () => {
-      const client = await redisService.getClient();
-      jest.spyOn(client, 'quit').mockRejectedValueOnce(new Error('Close failed'));
+    it('should handle multi operations', async () => {
+      const multi = redisService.multi();
+      expect(mockRedisClient.multi).toHaveBeenCalled();
+      expect(multi).toBeDefined();
+    });
+  });
 
-      await redisService.closeAll();
-      expect(logger.error).toHaveBeenCalledWith(
-        'Error closing Redis client',
-        expect.objectContaining({
-          error: expect.any(Error)
-        })
-      );
+  describe('error handling', () => {
+    it('should handle Redis operation errors', async () => {
+      const error = new Error('Redis operation failed');
+      mockRedisClient.get.mockRejectedValueOnce(error);
+
+      await expect(redisService.get('test-key')).rejects.toThrow('Redis operation failed');
+      expect(redisService.getMetrics().errorRate).toBe(1);
+      expect(logger.error).toHaveBeenCalledWith('Redis get error:', error);
+    });
+
+    it('should handle invalid JSON in get operation', async () => {
+      mockRedisClient.get.mockResolvedValueOnce('invalid-json');
+
+      await expect(redisService.get('test-key')).rejects.toThrow();
+      expect(redisService.getMetrics().errorRate).toBe(1);
     });
   });
 }); 

@@ -177,6 +177,72 @@ export class RedisService extends EventEmitter {
     }
   }
 
+  // Leaderboard operations
+  public async zadd(key: string, score: number, member: string): Promise<void> {
+    try {
+      await this.client.zadd(key, score, member);
+    } catch (error) {
+      logger.error('Redis zadd error:', error);
+      this.metrics.errorRate = (this.metrics.errorRate || 0) + 1;
+      throw error;
+    }
+  }
+
+  public async zrevrange(key: string, start: number, stop: number): Promise<string[]> {
+    try {
+      return await this.client.zrevrange(key, start, stop);
+    } catch (error) {
+      logger.error('Redis zrevrange error:', error);
+      this.metrics.errorRate = (this.metrics.errorRate || 0) + 1;
+      throw error;
+    }
+  }
+
+  public async zscore(key: string, member: string): Promise<string | null> {
+    try {
+      return await this.client.zscore(key, member);
+    } catch (error) {
+      logger.error('Redis zscore error:', error);
+      this.metrics.errorRate = (this.metrics.errorRate || 0) + 1;
+      throw error;
+    }
+  }
+
+  public async zcard(key: string): Promise<number> {
+    try {
+      return await this.client.zcard(key);
+    } catch (error) {
+      logger.error('Redis zcard error:', error);
+      this.metrics.errorRate = (this.metrics.errorRate || 0) + 1;
+      throw error;
+    }
+  }
+
+  // Analytics operations
+  public async hincrby(key: string, field: string, increment: number): Promise<number> {
+    try {
+      return await this.client.hincrby(key, field, increment);
+    } catch (error) {
+      logger.error('Redis hincrby error:', error);
+      this.metrics.errorRate = (this.metrics.errorRate || 0) + 1;
+      throw error;
+    }
+  }
+
+  public async hgetall(key: string): Promise<Record<string, string>> {
+    try {
+      return await this.client.hgetall(key);
+    } catch (error) {
+      logger.error('Redis hgetall error:', error);
+      this.metrics.errorRate = (this.metrics.errorRate || 0) + 1;
+      throw error;
+    }
+  }
+
+  public multi(): ReturnType<Redis['multi']> {
+    return this.client.multi();
+  }
+
   public async quit(): Promise<void> {
     await this.client.quit();
   }
