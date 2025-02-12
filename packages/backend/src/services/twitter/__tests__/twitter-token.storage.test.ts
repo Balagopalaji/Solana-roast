@@ -1,144 +1,180 @@
+import { jest, describe, beforeEach, afterEach, it, expect } from '@jest/globals';
+import { Redis } from 'ioredis';
 import { TwitterTokenStorage, TwitterTokenData } from '../twitter-token.storage';
+import { EventBusService } from '../../events/event-bus.service';
+import { EventType } from '../../events/events.types';
+import { mockRedisClient } from '../../../tests/mocks/ioredis';
 
-// Mock Redis and crypto
+// Mock Redis
 jest.mock('ioredis');
-jest.mock('crypto');
+
+// Mock EventBus
+const mockEventBus = {
+  emit: jest.fn()
+} as unknown as jest.Mocked<EventBusService>;
 
 describe('TwitterTokenStorage', () => {
-  let storage: TwitterTokenStorage;
-  const mockTokens: TwitterTokenData = {
-    userId: 'user123',
+  let tokenStorage: TwitterTokenStorage;
+  const testEncryptionKey = Buffer.from('0123456789abcdef0123456789abcdef').toString('hex');
+  
+  const mockToken: TwitterTokenData = {
+    accessToken: 'test-access-token',
+    refreshToken: 'test-refresh-token',
+    userId: 'test-user-id',
     username: 'testuser',
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token',
-    expiresAt: Date.now() + 3600000 // 1 hour from now
+    expiresAt: Date.now() + 3600000, // 1 hour from now
+    createdAt: Date.now(),
+    scope: ['tweet.read', 'tweet.write']
   };
 
   beforeEach(() => {
-    // Clear all mocks
     jest.clearAllMocks();
-    // Reset environment variables
-    process.env.REDIS_URL = 'redis://localhost:6379';
-    process.env.ENCRYPTION_KEY = '0'.repeat(64); // 32 bytes in hex
-    // Initialize storage
-    storage = new TwitterTokenStorage();
-  });
-
-  describe('storeUserTokens', () => {
-    it('should store tokens successfully', async () => {
-      await expect(storage.storeUserTokens(mockTokens.userId, mockTokens))
-        .resolves.not.toThrow();
-    });
-
-    it('should add expiry if not provided', async () => {
-      const tokensWithoutExpiry = { ...mockTokens };
-      delete tokensWithoutExpiry.expiresAt;
-
-      await storage.storeUserTokens(mockTokens.userId, tokensWithoutExpiry);
-      const stored = await storage.getUserTokens(mockTokens.userId);
-      
-      expect(stored).toBeTruthy();
-      expect(stored!.expiresAt).toBeDefined();
-      expect(stored!.expiresAt).toBeGreaterThan(Date.now());
+    tokenStorage = new TwitterTokenStorage(mockRedisClient as unknown as Redis, {
+      encryptionKey: testEncryptionKey,
+      eventBus: mockEventBus
     });
   });
 
-  describe('getUserTokens', () => {
-    it('should retrieve stored tokens', async () => {
-      await storage.storeUserTokens(mockTokens.userId, mockTokens);
-      const tokens = await storage.getUserTokens(mockTokens.userId);
-      
-      expect(tokens).toEqual(mockTokens);
+  afterEach(() => {
+    jest.clearAllTimers();
+  });
+
+  describe('storeToken', () => {
+    it('should store encrypted token data', async () => {
+      await tokenStorage.storeToken(mockToken.userId, mockToken);
+
+      expect(mockRedisClient.hset).toHaveBeenCalled();
+      expect(mockRedisClient.expire).toHaveBeenCalled();
+      expect(mockEventBus.emit).toHaveBeenCalledWith(expect.objectContaining({
+        type: EventType.TWITTER_AUTH_SUCCESS
+      }));
     });
 
-    it('should return null for non-existent tokens', async () => {
-      const tokens = await storage.getUserTokens('nonexistent');
-      expect(tokens).toBeNull();
+    it('should handle token without expiry', async () => {
+      const tokenWithoutExpiry = { ...mockToken };
+      delete tokenWithoutExpiry.expiresAt;
+
+      await tokenStorage.storeToken(mockToken.userId, tokenWithoutExpiry);
+
+      expect(mockRedisClient.expire).toHaveBeenCalledWith(
+        expect.any(String),
+        24 * 60 * 60 // Default TTL
+      );
     });
 
-    it('should return null for expired tokens', async () => {
-      const expiredTokens = {
-        ...mockTokens,
+    it('should throw error on storage failure', async () => {
+      mockRedisClient.hset.mockRejectedValueOnce(new Error('Redis error'));
+
+      await expect(tokenStorage.storeToken(mockToken.userId, mockToken))
+        .rejects
+        .toThrow('Failed to store token securely');
+    });
+  });
+
+  describe('getToken', () => {
+    it('should retrieve and decrypt token data', async () => {
+      // First store a token
+      await tokenStorage.storeToken(mockToken.userId, mockToken);
+
+      // Mock the Redis response with encrypted data
+      mockRedisClient.hgetall.mockResolvedValueOnce({
+        data: expect.any(String),
+        iv: expect.any(String),
+        authTag: expect.any(String),
+        userId: mockToken.userId,
+        username: mockToken.username
+      });
+
+      const retrievedToken = await tokenStorage.getToken(mockToken.userId);
+      expect(retrievedToken).toBeDefined();
+      expect(retrievedToken?.userId).toBe(mockToken.userId);
+      expect(retrievedToken?.accessToken).toBe(mockToken.accessToken);
+    });
+
+    it('should return null for expired token', async () => {
+      const expiredToken = {
+        ...mockToken,
         expiresAt: Date.now() - 3600000 // 1 hour ago
       };
+
+      await tokenStorage.storeToken(mockToken.userId, expiredToken);
+      const retrievedToken = await tokenStorage.getToken(mockToken.userId);
       
-      await storage.storeUserTokens(mockTokens.userId, expiredTokens);
-      const tokens = await storage.getUserTokens(mockTokens.userId);
+      expect(retrievedToken).toBeNull();
+      expect(mockRedisClient.del).toHaveBeenCalled();
+    });
+
+    it('should return null for non-existent token', async () => {
+      mockRedisClient.hgetall.mockResolvedValueOnce({});
       
-      expect(tokens).toBeNull();
+      const retrievedToken = await tokenStorage.getToken('non-existent');
+      expect(retrievedToken).toBeNull();
     });
   });
 
-  describe('removeUserTokens', () => {
-    it('should remove tokens successfully', async () => {
-      await storage.storeUserTokens(mockTokens.userId, mockTokens);
-      await storage.removeUserTokens(mockTokens.userId);
-      
-      const tokens = await storage.getUserTokens(mockTokens.userId);
-      expect(tokens).toBeNull();
-    });
+  describe('removeToken', () => {
+    it('should remove token and emit event', async () => {
+      await tokenStorage.removeToken(mockToken.userId);
 
-    it('should not throw when removing non-existent tokens', async () => {
-      await expect(storage.removeUserTokens('nonexistent'))
-        .resolves.not.toThrow();
-    });
-  });
-
-  describe('updateTokenExpiry', () => {
-    it('should update expiry successfully', async () => {
-      await storage.storeUserTokens(mockTokens.userId, mockTokens);
-      const newExpiry = Date.now() + 7200000; // 2 hours from now
-      
-      await storage.updateTokenExpiry(mockTokens.userId, newExpiry);
-      const tokens = await storage.getUserTokens(mockTokens.userId);
-      
-      expect(tokens?.expiresAt).toBe(newExpiry);
-    });
-
-    it('should throw when updating non-existent tokens', async () => {
-      const newExpiry = Date.now() + 7200000;
-      
-      await expect(storage.updateTokenExpiry('nonexistent', newExpiry))
-        .rejects.toThrow('No tokens found to update expiry');
+      expect(mockRedisClient.del).toHaveBeenCalled();
+      expect(mockEventBus.emit).toHaveBeenCalledWith(expect.objectContaining({
+        type: EventType.TWITTER_AUTH_REVOKED
+      }));
     });
   });
 
   describe('listValidTokens', () => {
-    it('should list only valid tokens', async () => {
-      const validTokens = {
-        ...mockTokens,
-        userId: 'valid-user',
-        expiresAt: Date.now() + 3600000
-      };
-      
-      const expiredTokens = {
-        ...mockTokens,
-        userId: 'expired-user',
-        expiresAt: Date.now() - 3600000
-      };
-      
-      const noExpiryTokens = {
-        ...mockTokens,
-        userId: 'no-expiry-user'
-      };
-      delete noExpiryTokens.expiresAt;
+    it('should return list of valid token user IDs', async () => {
+      mockRedisClient.keys.mockResolvedValueOnce([
+        'twitter:tokens:user1',
+        'twitter:tokens:user2'
+      ]);
 
-      // Store all types of tokens
-      await storage.storeUserTokens(validTokens.userId, validTokens);
-      await storage.storeUserTokens(expiredTokens.userId, expiredTokens);
-      await storage.storeUserTokens(noExpiryTokens.userId, noExpiryTokens);
-
-      const tokens = await storage.listValidTokens();
-      
-      expect(tokens).toHaveLength(2); // valid and no-expiry tokens
-      expect(tokens.map(t => t.userId)).toContain(validTokens.userId);
-      expect(tokens.map(t => t.userId)).toContain(noExpiryTokens.userId);
-      expect(tokens.map(t => t.userId)).not.toContain(expiredTokens.userId);
+      const validTokens = await tokenStorage.listValidTokens();
+      expect(validTokens).toHaveLength(2);
+      expect(validTokens).toContain('user1');
+      expect(validTokens).toContain('user2');
     });
 
-    it('should return empty array when no tokens exist', async () => {
-      const tokens = await storage.listValidTokens();
-      expect(tokens).toEqual([]);
+    it('should filter out expired tokens', async () => {
+      mockRedisClient.keys.mockResolvedValueOnce([
+        'twitter:tokens:user1',
+        'twitter:tokens:user2'
+      ]);
+
+      // Mock user1 with valid token, user2 with expired token
+      jest.spyOn(tokenStorage, 'getToken')
+        .mockImplementation(async (userId) => {
+          if (userId === 'user1') {
+            return mockToken;
+          }
+          return null;
+        });
+
+      const validTokens = await tokenStorage.listValidTokens();
+      expect(validTokens).toHaveLength(1);
+      expect(validTokens).toContain('user1');
+    });
+  });
+
+  describe('encryption', () => {
+    it('should encrypt and decrypt data correctly', async () => {
+      await tokenStorage.storeToken(mockToken.userId, mockToken);
+      const retrievedToken = await tokenStorage.getToken(mockToken.userId);
+
+      expect(retrievedToken).toBeDefined();
+      expect(retrievedToken?.accessToken).toBe(mockToken.accessToken);
+      expect(retrievedToken?.refreshToken).toBe(mockToken.refreshToken);
+    });
+
+    it('should use different IVs for each encryption', async () => {
+      const spy = jest.spyOn(tokenStorage as any, 'encrypt');
+      
+      await tokenStorage.storeToken('user1', mockToken);
+      await tokenStorage.storeToken('user2', mockToken);
+
+      const [firstCall, secondCall] = spy.mock.results;
+      expect(firstCall.value.iv).not.toBe(secondCall.value.iv);
     });
   });
 }); 

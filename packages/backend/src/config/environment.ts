@@ -88,6 +88,7 @@ export const environment = {
     oauth2: {
       clientId: process.env.TWITTER_CLIENT_ID,
       clientSecret: process.env.TWITTER_CLIENT_SECRET,
+      encryptionKey: process.env.TWITTER_TOKEN_ENCRYPTION_KEY,
       scopes: [
         'tweet.read',
         'tweet.write',
@@ -151,6 +152,7 @@ export interface TwitterConfig {
   accessSecret?: string;
   clientId?: string;
   clientSecret?: string;
+  encryptionKey?: string;
   urls: {
     callback: string;
     website: string;

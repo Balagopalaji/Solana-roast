@@ -28,10 +28,12 @@
     "dev:check": "node scripts/check-ngrok.js && node scripts/check-redis.js"
   },
   "devDependencies": {
+    "@types/ioredis": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "@types/sharp": "^0.32.0",
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "@types/ioredis": "^5.0.0",
     "ioredis": "^5.5.0"
   }
 }

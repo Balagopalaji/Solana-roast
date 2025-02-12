@@ -296,3 +296,83 @@ Follow these patterns when:
 - Implementing new features
 - Fixing existing tests
 - Refactoring code 
+
+## Recent Updates (February 2024)
+### TypeScript and Twitter Integration Fixes
+
+#### Issue 1: Sharp Metadata Type Safety
+**Problem:** TypeScript errors with Sharp metadata properties being possibly undefined:
+```typescript
+// Error: 'metadata.width' is possibly 'undefined'
+if (metadata.width > this.MEDIA_VALIDATION.maxDimensions.width ||
+    metadata.height > this.MEDIA_VALIDATION.maxDimensions.height)
+```
+
+**Solution:**
+```typescript
+const metadata = await sharp(buffer).metadata();
+      
+if (!metadata.width || !metadata.height) {
+  throw new Error('Could not determine image dimensions');
+}
+
+// Now TypeScript knows these are defined
+if (metadata.width > this.MEDIA_VALIDATION.maxDimensions.width ||
+    metadata.height > this.MEDIA_VALIDATION.maxDimensions.height)
+```
+
+#### Issue 2: Type Definition Resolution
+**Problem:** TypeScript couldn't find type definitions for node, ioredis, and sharp.
+
+**Solution Steps:**
+1. Install type definitions in correct package:
+   ```bash
+   cd packages/backend
+   npm install --save-dev @types/node @types/jest @types/sharp @types/ioredis
+   ```
+
+2. Create custom sharp type declaration:
+   ```typescript
+   // src/types/sharp.d.ts
+   declare module 'sharp' {
+     import sharp = require('sharp');
+     export = sharp;
+     export as namespace sharp;
+   }
+   ```
+
+3. Update tsconfig.json:
+   ```json
+   {
+     "compilerOptions": {
+       "types": ["node", "jest"],
+       "typeRoots": [
+         "../../node_modules/@types",
+         "./src/types"
+       ]
+     }
+   }
+   ```
+
+#### Best Practices Learned
+1. **Type Safety:**
+   - Always check for undefined values before using them
+   - Use type guards to narrow types
+   - Add explicit error messages for undefined cases
+
+2. **Module Resolution:**
+   - Keep type definitions close to where they're used
+   - Use proper typeRoots configuration
+   - Create custom type declarations when needed
+
+3. **Project Structure:**
+   - Maintain clear separation between workspace and package dependencies
+   - Use proper paths in tsconfig.json
+   - Keep type definitions organized
+
+4. **Error Handling:**
+   - Provide clear error messages
+   - Handle all possible undefined cases
+   - Use proper error types
+
+// ... existing code ... 

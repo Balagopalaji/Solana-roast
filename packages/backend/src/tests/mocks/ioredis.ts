@@ -37,4 +37,30 @@ export const createMockRedisClient = (): jest.Mocked<Redis> => {
   return new MockRedisClient() as unknown as jest.Mocked<Redis>;
 };
 
-export const mockRedisClient = createMockRedisClient(); 
+// Create a type-safe mock of Redis client
+export const mockRedisClient = {
+  hset: jest.fn().mockImplementation(async () => Promise.resolve(1)),
+  hgetall: jest.fn().mockImplementation(async () => Promise.resolve({})),
+  expire: jest.fn().mockImplementation(async () => Promise.resolve(1)),
+  del: jest.fn().mockImplementation(async () => Promise.resolve(1)),
+  keys: jest.fn().mockImplementation(async () => Promise.resolve([])),
+  quit: jest.fn().mockImplementation(async () => Promise.resolve('OK')),
+  
+  // Event handling and connection methods
+  on: jest.fn(),
+  connect: jest.fn().mockImplementation(async () => Promise.resolve()),
+  disconnect: jest.fn().mockImplementation(async () => Promise.resolve()),
+  
+  // Reset all mocks helper
+  mockClear: function() {
+    this.hset.mockClear();
+    this.hgetall.mockClear();
+    this.expire.mockClear();
+    this.del.mockClear();
+    this.keys.mockClear();
+    this.quit.mockClear();
+    this.on.mockClear();
+    this.connect.mockClear();
+    this.disconnect.mockClear();
+  }
+} as unknown as jest.Mocked<Pick<Redis, 'hset' | 'hgetall' | 'expire' | 'del' | 'keys' | 'quit' | 'on' | 'connect' | 'disconnect'>> & { mockClear: () => void }; 
