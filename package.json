@@ -14,8 +14,18 @@
     "verify": "npm run verify -w packages/backend",
     "dev:ngrok": "sh ./scripts/dev.sh",
     "update:ngrok": "ts-node --project scripts/tsconfig.json ./scripts/update-ngrok-urls.ts",
-    "predev": "kill $(lsof -t -i:3000) 2>/dev/null || true && kill $(lsof -t -i:5173) 2>/dev/null || true",
-    "ngrok:cleanup": "pkill -f ngrok || true"
+    "check:ngrok": "ts-node --project scripts/tsconfig.json ./scripts/check-ngrok.ts",
+    "ngrok:start": "ngrok http 5173",
+    "ngrok:status": "curl -s http://localhost:4040/api/tunnels || echo 'Ngrok is not running'",
+    "predev": "node scripts/check-dev-services.js && kill $(lsof -t -i:3000) 2>/dev/null || true && kill $(lsof -t -i:5173) 2>/dev/null || true",
+    "ngrok:cleanup": "pkill -f ngrok || true",
+    "dev:persistent": "npm run ngrok:cleanup && npm run ngrok:start",
+    "check:production": "ts-node --project scripts/tsconfig.json ./scripts/check-production-readiness.ts",
+    "predeploy": "npm run ngrok:cleanup && npm run check:production",
+    "postdev": "node scripts/cleanup-dev-services.js",
+    "dev:services:start": "brew services start redis",
+    "dev:services:stop": "brew services stop redis",
+    "dev:check": "node scripts/check-ngrok.js && node scripts/check-redis.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

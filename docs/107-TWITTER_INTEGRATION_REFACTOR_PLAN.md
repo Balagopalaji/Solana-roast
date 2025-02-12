@@ -603,6 +603,145 @@ const tweetService = environment.features.useDevAccount
 15. Implement proper session integration
 16. Use feature flags for gradual rollout
 
+## Authentication Strategy
+
+### 1. Hybrid Authentication Approach
+
+#### Dev Account (v1.1)
+- Maintain existing v1.1 implementation for dev account
+- Uses API key + secret authentication
+- Proven media upload functionality
+- Stable rate limiting
+- Redis integration for token storage and rate limiting
+
+#### User Authentication (OAuth 2.0)
+- Implement OAuth 2.0 with PKCE for user authentication
+- Required scopes:
+  * tweet.read
+  * tweet.write
+  * users.read
+  * offline.access
+- Modern authorization flow
+- Enhanced security
+- Redis-based session management
+
+### 2. API Version Strategy
+
+#### Media Upload (v1.1)
+- Use v1.1 for ALL media uploads (both dev and user)
+- Maintain chunked upload support
+- Handle media processing status
+- Implement retry mechanisms
+- Redis-based rate limiting
+
+#### Tweet Creation
+- Dev account: Continue using v1.1
+- User tweets: Implement v2 endpoint
+- Handle rate limits separately
+- Maintain fallback options
+- Redis-based operation tracking
+
+### 3. Implementation Plan
+
+1. **Phase 1: Dev Account Hardening**
+   - Audit current implementation
+   - Document working configurations
+   - Enhance error handling
+   - Add comprehensive logging
+   - Configure Redis for development:
+     * Local instance setup
+     * Security configuration
+     * Connection testing
+     * Performance monitoring
+
+2. **Phase 2: OAuth 2.0 Setup**
+   - Configure Developer Portal
+   - Implement PKCE flow
+   - Set up secure token storage in Redis:
+     * Encryption configuration
+     * TTL management
+     * Backup strategy
+   - Add session management:
+     * Redis-based sessions
+     * Cleanup routines
+     * Monitoring
+
+3. **Phase 3: Hybrid Integration**
+   - Implement user auth flow
+   - Set up media handling
+   - Configure tweet creation
+   - Add monitoring
+   - Redis integration:
+     * Rate limiting
+     * Token management
+     * Event distribution
+     * Performance tracking
+
+### 4. Security Considerations
+
+1. **Token Management**
+   - Secure Redis storage implementation:
+     * TLS encryption
+     * Password authentication
+     * Key encryption
+   - Token refresh handling
+   - Session validation
+   - Encryption requirements
+
+2. **Rate Limiting**
+   - Redis-based rate limiting:
+     * Separate dev/user limits
+     * Environment-specific configs
+     * Monitoring setup
+   - Implement backoff strategy
+   - Monitor usage patterns
+   - Handle limit errors
+
+3. **Error Handling**
+   - Graceful degradation
+   - Retry mechanisms
+   - User feedback
+   - Error logging
+   - Redis failure handling:
+     * Connection retries
+     * Failover options
+     * Data recovery
+
+### 5. Infrastructure Requirements
+
+1. **Development Environment**
+   - Local Redis instance:
+     * Installation guide
+     * Configuration template
+     * Security settings
+     * Monitoring setup
+
+2. **Production Environment**
+   - Hosted Redis service:
+     * Instance sizing
+     * TLS configuration
+     * Backup strategy
+     * Monitoring integration
+
+3. **Migration Process**
+   - Pre-migration checklist
+   - Data migration steps
+   - Verification procedures
+   - Rollback plan
+   - Monitoring setup
+
+4. **Monitoring Requirements**
+   - Redis metrics:
+     * Memory usage
+     * Connection status
+     * Operation latency
+     * Error rates
+   - Application metrics:
+     * Auth success/failure
+     * Rate limit status
+     * Token operations
+     * Session health
+
 ---
 
 This document serves as a comprehensive guide for refactoring the Twitter integration while preserving the current functionality for future use. Follow each step carefully and maintain proper error handling and logging throughout the implementation. 

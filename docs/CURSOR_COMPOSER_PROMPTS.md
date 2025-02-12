@@ -44,355 +44,151 @@ Before implementing ANY prompt or making ANY changes:
   - [OAuth 1.0a](https://developer.twitter.com/en/docs/authentication/oauth-1-0a)
 - Current Implementation: `docs/106-TWITTER_API_INTEGRATION-how-it-worked-in-the-end.md`
 
-## Development Environment Considerations
+## Environment Configuration
 
-### ngrok Configuration
-The project uses a specific development setup with ngrok that MUST be preserved:
+### Core Principles
 
-1. **Environment Files**
-   - Root `.env`: Contains production configuration
-   - Frontend `.env.development`: Contains development-specific overrides
-   - The frontend `.env.development` is automatically updated by the `dev:ngrok` script
+1. **Single Source of Truth**
+   - All environment variables are managed in the root `.env` file
+   - No separate `.env.development` file is needed
+   - Environment-specific logic is handled in `environment.ts`
 
-2. **ngrok Script Workflow**
+2. **Environment Detection**
+   ```typescript
+   const isDevelopment = process.env.NODE_ENV === 'development';
+   ```
+
+3. **URL Management**
+   ```typescript
+   // URLs are determined by environment
+   const callbackUrl = isDevelopment
+     ? process.env.VITE_TWITTER_CALLBACK_URL // From ngrok
+     : 'https://solanaroast.lol/api/twitter/callback';
+   ```
+
+### Required Environment Variables
+
+1. **Core Variables**
+   ```env
+   NODE_ENV=development
+   PORT=3000
+   CORS_ORIGIN=http://localhost:5173
+   APP_URL=https://solanaroast.lol
+   ```
+
+2. **Twitter Integration**
+   ```env
+   TWITTER_API_KEY=your_api_key
+   TWITTER_API_SECRET=your_api_secret
+   TWITTER_ACCESS_TOKEN=your_access_token
+   TWITTER_ACCESS_SECRET=your_access_secret
+   ```
+
+3. **Development URLs** (Set automatically by ngrok scripts)
+   ```env
+   VITE_API_URL=https://[ngrok-id].ngrok-free.app
+   VITE_TWITTER_CALLBACK_URL=https://[ngrok-id].ngrok-free.app/api/twitter/callback
+   ```
+
+### Development Flow
+
+1. **Initial Setup**
    ```bash
-   # 1. Start development environment
+   # Copy example env file
+   cp .env.example .env
+   
+   # Fill in required values
+   vim .env
+   ```
+
+2. **Starting Development**
+   ```bash
+   # Start development with ngrok
    npm run dev:ngrok
    
-   # 2. Script actions:
-   # - Kills existing processes (ports 3000, 5173, ngrok)
-   # - Starts backend and frontend servers
-   # - Starts ngrok tunnel to port 5173
-   # - Updates .env.development with new URLs
-   
-   # 3. Manual steps required:
-   # - Copy the ngrok URL from console
-   # - Update Twitter Developer Portal:
-   #   - Website URL: https://{ngrok-id}.ngrok-free.app
-   #   - Callback URL: https://{ngrok-id}.ngrok-free.app/api/twitter/callback
+   # Ngrok will automatically:
+   # 1. Start a tunnel
+   # 2. Update VITE_* variables in process.env
+   # 3. Configure Twitter callback URLs
    ```
 
-3. **Critical Files and Their Roles**
-   ```typescript
-   // scripts/dev.sh
-   // - Main orchestration script
-   // - Manages process lifecycle
-   // - Handles cleanup on exit
-   
-   // scripts/update-ngrok-urls.ts
-   // - Updates .env.development
-   // - Format:
-   VITE_API_URL=https://{ngrok-id}.ngrok-free.app
-   VITE_ENABLE_TWITTER=true
-   VITE_TWITTER_CALLBACK_URL=https://{ngrok-id}.ngrok-free.app/api/twitter/callback
-   
-   // packages/backend/src/app.ts
-   // - CORS configuration for ngrok
-   app.use(cors({
-     origin: [
-       'http://localhost:5173',
-       'https://solanaroast.lol',
-       /^https:\/\/.*\.ngrok-free\.app$/
-     ],
-     credentials: true
-   }));
-   ```
-
-4. **Important Technical Notes**
-   - Frontend server uses Vite's `strictPort: true` to ensure consistent port usage
-   - CORS is configured to accept dynamic ngrok domains
-   - Environment updates must not trigger server restarts
-   - Twitter callback must match exactly between portal and .env.development
-
-### ngrok Compatibility Testing
-Add these test cases to your integration tests:
-
-```typescript
-describe('Twitter Integration Development Setup', () => {
-  it('should handle ngrok callback URLs correctly', async () => {
-    const mockNgrokUrl = 'https://mock-id.ngrok-free.app';
-    process.env.VITE_TWITTER_CALLBACK_URL = `${mockNgrokUrl}/api/twitter/callback`;
-    
-    const service = new TwitterService();
-    const authUrl = await service.getAuthUrl();
-    
-    expect(authUrl).to.include(encodeURIComponent(`${mockNgrokUrl}/api/twitter/callback`));
-  });
-
-  it('should accept requests from ngrok domains', async () => {
-    const response = await request(app)
-      .get('/api/health')
-      .set('Origin', 'https://test.ngrok-free.app');
-    
-    expect(response.headers['access-control-allow-origin'])
-      .to.equal('https://test.ngrok-free.app');
-  });
-});
-```
-
-### Additional Edge Case Tests
-```typescript
-describe('Twitter Integration Edge Cases', () => {
-  // 1. Dev Account Functionality
-  it('should maintain dev account functionality when user auth is enabled', async () => {
-    const devService = new DevTwitterService();
-    const userService = new UserTwitterService();
-    
-    // Enable user auth
-    process.env.VITE_ENABLE_TWITTER = 'true';
-    
-    // Dev service should still work
-    const devResult = await devService.shareAsDev(mockTweetData);
-    expect(devResult.success).to.be.true;
-    
-    // User service should work independently
-    const userResult = await userService.getAuthUrl();
-    expect(userResult).to.include('oauth/authorize');
-  });
-
-  // 2. Environment Transitions
-  describe('Environment Transitions', () => {
-    let originalEnv: string;
-    let originalUrls: { base?: string; callback?: string };
-
-    beforeEach(() => {
-      originalEnv = process.env.NODE_ENV;
-      originalUrls = {
-        base: process.env.VITE_API_URL,
-        callback: process.env.VITE_TWITTER_CALLBACK_URL
-      };
-    });
-
-    afterEach(() => {
-      process.env.NODE_ENV = originalEnv;
-      process.env.VITE_API_URL = originalUrls.base;
-      process.env.VITE_TWITTER_CALLBACK_URL = originalUrls.callback;
-    });
-
-    it('should handle development to production transition', async () => {
-      // Start in development
-      process.env.NODE_ENV = 'development';
-      process.env.VITE_API_URL = 'https://test.ngrok-free.app';
-      process.env.VITE_TWITTER_CALLBACK_URL = 'https://test.ngrok-free.app/api/twitter/callback';
-      
-      const devService = new TwitterService();
-      const devUrl = await devService.getAuthUrl();
-      expect(devUrl).to.include('ngrok-free.app');
-
-      // Switch to production
-      process.env.NODE_ENV = 'production';
-      const prodService = new TwitterService();
-      const prodUrl = await prodService.getAuthUrl();
-      expect(prodUrl).to.include('solanaroast.lol');
-    });
-
-    it('should handle production to development transition', async () => {
-      // Similar to above but reverse order
-    });
-
-    it('should maintain dev account functionality across transitions', async () => {
-      const devService = new DevTwitterService();
-      
-      // Test in development
-      process.env.NODE_ENV = 'development';
-      const devResult = await devService.shareAsDev(mockTweetData);
-      expect(devResult.success).to.be.true;
-
-      // Test in production
-      process.env.NODE_ENV = 'production';
-      const prodResult = await devService.shareAsDev(mockTweetData);
-      expect(prodResult.success).to.be.true;
-    });
-  });
-
-  // 3. URL Format Validation
-  describe('URL Format Validation', () => {
-    it('should validate ngrok URL format', () => {
-      const validator = new EnvironmentValidator();
-      
-      // Valid URLs
-      expect(() => validator.validateNgrokUrl('https://abc-123.ngrok-free.app')).not.to.throw();
-      expect(() => validator.validateNgrokUrl('https://test.ngrok-free.app')).not.to.throw();
-      
-      // Invalid URLs
-      expect(() => validator.validateNgrokUrl('http://test.ngrok-free.app')).to.throw(); // No HTTP
-      expect(() => validator.validateNgrokUrl('https://test.ngrok.io')).to.throw(); // Old domain
-      expect(() => validator.validateNgrokUrl('https://test.ngrok-free.app/')).to.throw(); // Trailing slash
-    });
-
-    it('should validate callback URL format', () => {
-      const validator = new EnvironmentValidator();
-      
-      // Valid URLs
-      expect(() => validator.validateCallbackUrl('https://test.ngrok-free.app/api/twitter/callback')).not.to.throw();
-      
-      // Invalid URLs
-      expect(() => validator.validateCallbackUrl('https://test.ngrok-free.app/callback')).to.throw(); // Wrong path
-      expect(() => validator.validateCallbackUrl('https://test.ngrok-free.app/api/twitter/callback/')).to.throw(); // Trailing slash
-    });
-  });
-});
-```
+3. **URL Management**
+   - Ngrok URLs are managed automatically
+   - No need to manually maintain a `.env.development` file
+   - Twitter callback URLs are updated in real-time
 
 ### Environment Validation
-Add these essential checks to your startup routine:
 
 ```typescript
-// In packages/backend/src/utils/environment-validator.ts
-export async function validateEnvironment() {
-  // 1. Critical variables check
-  const criticalVariables = {
-    // Production variables
-    TWITTER_API_KEY: process.env.TWITTER_API_KEY,
-    TWITTER_API_SECRET: process.env.TWITTER_API_SECRET,
-    TWITTER_ACCESS_TOKEN: process.env.TWITTER_ACCESS_TOKEN,
-    TWITTER_ACCESS_SECRET: process.env.TWITTER_ACCESS_SECRET,
-    
-    // Development variables (when in dev)
-    ...(process.env.NODE_ENV === 'development' ? {
-      VITE_API_URL: process.env.VITE_API_URL,
-      VITE_TWITTER_CALLBACK_URL: process.env.VITE_TWITTER_CALLBACK_URL
-    } : {})
-  };
+function validateEnvironment() {
+  // Core validation
+  const required = [
+    'NODE_ENV',
+    'PORT',
+    'CORS_ORIGIN',
+    'APP_URL'
+  ];
 
-  const missing = Object.entries(criticalVariables)
-    .filter(([_, value]) => !value)
-    .map(([key]) => key);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing critical environment variables: ${missing.join(', ')}`);
-  }
-
-  // 2. Dev Account Configuration Validation
-  if (!process.env.TWITTER_ACCESS_TOKEN || !process.env.TWITTER_ACCESS_SECRET) {
-    throw new Error('Dev account credentials missing. These are required even when user auth is enabled.');
-  }
-
-  // Verify dev tokens format
-  const tokenFormat = /^[1-9][0-9]*-[A-Za-z0-9]+$/;
-  if (!tokenFormat.test(process.env.TWITTER_ACCESS_TOKEN!)) {
-    throw new Error('Invalid dev account access token format');
-  }
-
-  // 3. URL Format Validation
+  // Development-specific validation
   if (process.env.NODE_ENV === 'development') {
-    // Validate ngrok URL format
-    const ngrokUrlPattern = /^https:\/\/[a-zA-Z0-9-]+\.ngrok-free\.app$/;
-    const callbackUrlPattern = /^https:\/\/[a-zA-Z0-9-]+\.ngrok-free\.app\/api\/twitter\/callback$/;
-    
-    const baseUrl = process.env.VITE_API_URL;
-    const callbackUrl = process.env.VITE_TWITTER_CALLBACK_URL;
+    required.push(
+      'VITE_API_URL',
+      'VITE_TWITTER_CALLBACK_URL'
+    );
+  }
 
-    if (!ngrokUrlPattern.test(baseUrl!)) {
-      throw new Error(`Invalid ngrok base URL format: ${baseUrl}`);
-    }
-    if (!callbackUrlPattern.test(callbackUrl!)) {
-      throw new Error(`Invalid ngrok callback URL format: ${callbackUrl}`);
-    }
-
-    // Verify base URL matches callback URL base
-    const callbackBase = callbackUrl!.split('/api')[0];
-    if (baseUrl !== callbackBase) {
-      throw new Error('Base URL and callback URL must use the same ngrok domain');
-    }
+  // Check for missing variables
+  const missing = required.filter(name => !process.env[name]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required variables: ${missing.join(', ')}`);
   }
 }
-
-// Add to your startup sequence
-app.on('ready', async () => {
-  try {
-    await validateEnvironment();
-    // Continue startup...
-  } catch (error) {
-    logger.error('Environment validation failed:', error);
-    process.exit(1);
-  }
-});
 ```
 
-### Common Issues and Solutions
+### Best Practices
 
-1. **Callback URL Mismatch**
+1. **Environment Detection**
    ```typescript
-   // Problem: Twitter callback fails with "Invalid callback URL"
-   // Solution: Verify exact match between Twitter portal and .env.development
+   // Use environment.ts for all env checks
+   import { environment } from '../config/environment';
    
-   // In update-ngrok-urls.ts
-   const callbackUrl = `${ngrokUrl}/api/twitter/callback`;
-   console.log('Verify this matches Twitter portal exactly:', callbackUrl);
-   ```
-
-2. **CORS Issues**
-   ```typescript
-   // Problem: Frontend requests blocked by CORS
-   // Solution: Check CORS configuration in backend
-   
-   // In app.ts, ensure ngrok pattern is correct
-   const ngrokPattern = /^https:\/\/.*\.ngrok-free\.app$/;
-   if (!ngrokPattern.test(origin)) {
-     logger.warn('Rejected origin:', origin);
+   if (environment.nodeEnv === 'development') {
+     // Development-specific logic
    }
    ```
 
-3. **Port Conflicts**
-   ```bash
-   # Problem: "Port already in use" errors
-   # Solution: Use the cleanup script
-   npm run ngrok:cleanup
-   
-   # Or manually:
-   lsof -ti:5173 | xargs kill -9
-   lsof -ti:3000 | xargs kill -9
-   pkill -f ngrok
-   ```
-
-4. **Environment Updates**
+2. **URL Configuration**
    ```typescript
-   // Problem: Environment changes not reflected
-   // Solution: Verify update-ngrok-urls.ts execution
-   
-   // In dev.sh
-   echo "Verifying environment update..."
-   grep "VITE_TWITTER_CALLBACK_URL" packages/frontend/.env.development
+   // Always use environment.ts for URLs
+   const apiUrl = environment.twitter.urls.callback;
    ```
 
-### Development Workflow Best Practices
-
-1. **Starting Development**
-   ```bash
-   # 1. Clean start
-   npm run ngrok:cleanup
-   
-   # 2. Start development environment
-   npm run dev:ngrok
-   
-   # 3. Verify environment
-   cat packages/frontend/.env.development
+3. **Error Handling**
+   ```typescript
+   try {
+     await validateEnvironment();
+   } catch (error) {
+     logger.error('Environment validation failed:', error);
+     process.exit(1);
+   }
    ```
 
-2. **Testing Twitter Integration**
-   ```bash
-   # 1. Get ngrok URL
-   curl -s http://localhost:4040/api/tunnels | grep -o "https://[^\"]*\.ngrok-free.app"
-   
-   # 2. Update Twitter Developer Portal
-   # 3. Test authentication flow
-   # 4. Monitor logs for callback issues
-   tail -f logs/backend.log | grep "twitter"
-   ```
+### Common Issues
 
-3. **Troubleshooting Steps**
-   ```bash
-   # 1. Verify ngrok tunnel
-   curl -I https://{ngrok-id}.ngrok-free.app
-   
-   # 2. Check CORS headers
-   curl -I -H "Origin: https://{ngrok-id}.ngrok-free.app" \
-        http://localhost:3000/api/health
-   
-   # 3. Verify environment
-   npm run verify
-   ```
+1. **Missing Variables**
+   - Check `.env` file exists and is properly loaded
+   - Verify all required variables are set
+   - Run `npm run verify` to validate environment
+
+2. **URL Mismatches**
+   - Let ngrok scripts manage URLs automatically
+   - Don't manually create `.env.development`
+   - Use `npm run check:ngrok` to verify URLs
+
+3. **Development Flow**
+   - Always use `npm run dev:ngrok` for development
+   - Let the scripts handle URL management
+   - Check Twitter Developer Portal matches ngrok URLs
 
 ## Global Reminders for Each Prompt
 Before implementing any prompt, ensure you:
@@ -876,6 +672,316 @@ describe('Storage Services', () => {
     });
   });
 });
+```
+
+## Phase 5: Authentication and Infrastructure
+
+⚠️ **CRITICAL INTERMEDIATE STEP**
+Before proceeding with Phase 5, we must address test failures in the Redis service implementation:
+1. Follow the test fix plan in `docs/107-REDIS_TEST_FIX_PLAN.md`
+2. Complete all verification steps
+3. Ensure test coverage meets requirements
+4. Update documentation
+
+This step is crucial for:
+- Maintaining system stability
+- Ensuring reliable infrastructure
+- Supporting future features
+- Preventing technical debt accumulation
+
+Only proceed with Phase 5 after test fixes are complete and verified.
+
+### Prompt 9.5: Redis Infrastructure Setup
+
+BEFORE STARTING:
+- Review the Global Reminders section
+- Study the current Redis implementation
+- Review security best practices
+- Understand our distributed requirements
+
+Tasks:
+
+1. Redis Connection Management
+   - Implement connection pooling
+   - Add retry strategies
+   - Configure TLS for production
+   - Add health checks
+
+2. Security Configuration
+   - Set up password authentication
+   - Configure TLS certificates
+   - Implement key encryption
+   - Add access controls
+
+3. Environment Configuration
+   - Development setup
+   - Production setup
+   - Testing configuration
+   - Monitoring integration
+
+4. Monitoring Setup
+   - Connection status
+   - Memory usage
+   - Operation latency
+   - Error rates
+
+### Prompt 10: OAuth 2.0 Foundation
+```prompt
+BEFORE STARTING:
+- Review the Global Reminders section at the top of this document
+- Ensure Twitter Developer Portal access is configured
+- Review Twitter API v2 OAuth documentation
+- Understand the ngrok development setup requirements
+- Verify Redis is running locally for development
+
+Implement the OAuth 2.0 foundation while preserving v1.1 dev functionality:
+
+1. Development Environment Setup
+   - Review ngrok configuration workflow
+   - Understand .env.development auto-update mechanism
+   - Verify CORS configuration for ngrok domains
+   - Test environment validation utilities
+   - Configure local Redis:
+     * Install and start Redis locally
+     * Verify Redis connection
+     * Test token storage
+     * Configure development settings
+
+2. Dev Account Infrastructure (v1.1)
+   - Audit current implementation
+   - Document working configurations
+   - Add comprehensive error handling
+   - Implement retry mechanisms
+   - Ensure ngrok compatibility
+   - Verify Redis integration:
+     * Session storage
+     * Rate limiting
+     * Event distribution
+
+3. OAuth 2.0 Setup
+   - Configure Developer Portal settings for both environments:
+     * Production: solanaroast.lol
+     * Development: dynamic ngrok URLs
+   - Set up required scopes:
+     * tweet.read
+     * tweet.write
+     * users.read
+     * offline.access
+   - Configure callback URLs:
+     * Production: https://solanaroast.lol/api/twitter/callback
+     * Development: https://{ngrok-id}.ngrok-free.app/api/twitter/callback
+   - Update environment variables
+   - Configure Redis for token storage:
+     * Development: Local Redis
+     * Production: Hosted Redis (TLS enabled)
+
+4. PKCE Implementation
+   - Code verifier generation
+   - Code challenge creation (S256)
+   - State parameter handling
+   - Token storage design
+   - Environment-aware URL handling
+   - Redis token storage implementation:
+     * Secure storage service
+     * Token encryption
+     * Expiry handling
+     * Refresh token management
+
+5. Security Foundation
+   - Secure token storage
+   - CORS configuration for all environments
+   - State validation
+   - Token encryption
+   - Environment-specific security measures
+   - Redis security:
+     * TLS configuration
+     * Password authentication
+     * Key encryption
+     * Connection pooling
+
+VALIDATION:
+- [ ] Dev account functionality preserved
+- [ ] OAuth 2.0 credentials configured
+- [ ] PKCE utilities implemented
+- [ ] Security measures in place
+- [ ] ngrok development flow working
+- [ ] Environment switching tested
+- [ ] Redis operational in development
+- [ ] Token storage verified
+- [ ] Rate limiting functional
+```
+
+### Prompt 11: User Authentication Flow
+```prompt
+BEFORE STARTING:
+- Review the Global Reminders section
+- Ensure Prompt 10 is completed
+- Review Twitter API hybrid usage (v1.1 + v2)
+- Verify ngrok tunnel is active for development
+- Confirm Redis is operational
+
+Implement the user authentication flow:
+
+1. Frontend Components
+   - TwitterAuthButton component with environment awareness
+   - Callback handling for both ngrok and production URLs
+   - Loading states
+   - Error handling
+   - Environment indicator for development
+   - Redis status monitoring
+
+2. Backend Services
+   - OAuth endpoints with environment routing
+   - Token management with Redis:
+     * Secure storage
+     * Encryption
+     * Expiry handling
+     * Refresh management
+   - Session handling:
+     * Redis session storage
+     * Environment awareness
+     * Cleanup routines
+   - Rate limiting:
+     * Redis-based limiting
+     * Environment-specific limits
+     * Monitoring
+   - Environment-specific configurations
+
+3. Hybrid API Integration
+   - Media upload (v1.1)
+   - Tweet creation (v2)
+   - Error recovery
+   - Rate limit handling
+   - Environment-aware URL construction
+   - Redis integration:
+     * Token validation
+     * Session checks
+     * Rate monitoring
+
+4. Development Tools
+   - Environment switching utility
+   - ngrok URL validation
+   - Callback URL verification
+   - Development mode indicators
+   - Easy environment debugging
+   - Redis management:
+     * Connection monitoring
+     * Data inspection
+     * Performance tracking
+
+5. Testing & Monitoring
+   - Auth flow testing in both environments
+   - Token lifecycle verification
+   - Error scenarios
+   - Performance metrics
+   - Environment transition testing
+   - Redis health checks:
+     * Connection status
+     * Memory usage
+     * Operation latency
+     * Error rates
+
+VALIDATION:
+- [ ] Auth flow working end-to-end in both environments
+- [ ] Media upload successful
+- [ ] Tweet creation working
+- [ ] Error handling robust
+- [ ] Development/Production switching working
+- [ ] ngrok integration tested
+- [ ] Redis operations verified
+- [ ] Token storage secure
+- [ ] Sessions managed correctly
+```
+
+### Prompt 12: Infrastructure Monitoring
+```prompt
+BEFORE STARTING:
+- Review the Global Reminders section
+- Ensure Prompts 10-11 are completed
+- Review monitoring requirements
+- Verify environment-specific monitoring needs
+- Check Redis monitoring capabilities
+
+Implement comprehensive monitoring:
+
+1. Authentication Monitoring
+   - Auth success/failure rates per environment
+   - Token refresh metrics
+   - Session analytics
+   - Error tracking with environment context
+   - ngrok connection monitoring
+   - Redis metrics:
+     * Token operations
+     * Storage usage
+     * Operation latency
+
+2. API Monitoring
+   - Rate limit tracking per environment
+   - API latency measurements
+   - Error rates with environment context
+   - Usage patterns
+   - ngrok tunnel health
+   - Redis performance:
+     * Connection pool status
+     * Command statistics
+     * Memory usage
+     * Network metrics
+
+3. Performance Metrics
+   - Response times per environment
+   - Resource usage tracking
+   - Cache hit rates
+   - Bottleneck detection
+   - Environment transition impact
+   - Redis insights:
+     * Operation throughput
+     * Memory efficiency
+     * Connection health
+     * Command patterns
+
+4. Development Tools
+   - Environment status dashboard
+   - ngrok tunnel monitoring
+   - URL validation tools
+   - Environment switching logs
+   - Configuration verification
+   - Redis utilities:
+     * Connection testing
+     * Data inspection
+     * Performance analysis
+     * Error investigation
+
+5. Alerting System
+   - Critical error alerts
+   - Rate limit warnings
+   - Performance degradation
+   - Security incidents
+   - Environment-specific thresholds
+   - Redis alerts:
+     * Connection issues
+     * Memory warnings
+     * Performance problems
+     * Security events
+
+6. Production Migration Guide
+   - Pre-migration checklist
+   - Redis transition steps:
+     * Production instance setup
+     * Security configuration
+     * Data migration plan
+     * Verification procedures
+   - Post-migration validation
+   - Rollback procedures
+
+VALIDATION:
+- [ ] Monitoring systems active in all environments
+- [ ] Alerts configured with environment context
+- [ ] Metrics being collected
+- [ ] Dashboard operational
+- [ ] Development tools functioning
+- [ ] Environment switching monitored
+- [ ] Redis monitoring complete
+- [ ] Migration guide documented
 ```
 
 ## Implementation Sequence
