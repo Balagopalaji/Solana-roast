@@ -1,5 +1,7 @@
-import { RedisMonitorService, RedisAlert } from '../redis-monitor.service';
-import { redisService } from '../../storage/redis.service';
+import { jest, describe, beforeEach, afterEach, it, expect } from '@jest/globals';
+import { RedisMonitorService } from '../redis-monitor.service';
+import { RedisService } from '../../storage/redis.service';
+import { RedisAlert, RedisMetrics } from '../../../types/redis.types';
 import logger from '../../../utils/logger';
 
 // Mock dependencies
@@ -8,6 +10,8 @@ jest.mock('../../../utils/logger');
 
 describe('RedisMonitorService', () => {
   let monitorService: RedisMonitorService;
+  let alerts: RedisAlert[] = [];
+  let redisService: RedisService;
 
   beforeEach(() => {
     // Clear all mocks
@@ -18,8 +22,12 @@ describe('RedisMonitorService', () => {
     process.env.REDIS_ALERT_THRESHOLD_MEMORY = '80';
     process.env.REDIS_ALERT_THRESHOLD_LATENCY = '100';
     process.env.REDIS_ALERT_THRESHOLD_ERRORS = '10';
-    // Get fresh instance
+    // Get fresh instances
     monitorService = RedisMonitorService.getInstance();
+    redisService = RedisService.getInstance();
+    // Reset alerts array
+    alerts = [];
+    monitorService.on('alert', (alert: RedisAlert) => alerts.push(alert));
   });
 
   afterEach(() => {
@@ -44,7 +52,7 @@ describe('RedisMonitorService', () => {
 
     it('should start monitoring and subscribe to metrics', () => {
       monitorService.start();
-      expect(redisService.on).toHaveBeenCalledWith('metrics', expect.any(Function));
+      expect(RedisService.getInstance().on).toHaveBeenCalledWith('metrics', expect.any(Function));
       expect(logger.info).toHaveBeenCalledWith(
         'Starting Redis monitoring',
         expect.any(Object)
@@ -59,62 +67,52 @@ describe('RedisMonitorService', () => {
   });
 
   describe('alerts', () => {
-    let alerts: RedisAlert[] = [];
-
-    beforeEach(() => {
-      alerts = [];
-      monitorService.onAlert((alert) => alerts.push(alert));
-    });
-
     it('should emit connection alerts', () => {
       monitorService.start();
-      const metrics = {
-        connectionStatus: 'error',
+      const metrics: RedisMetrics = {
+        isConnected: false,
         operationLatency: 0,
-        totalOperations: 0,
-        failedOperations: 0
+        errorRate: 0,
+        lastUpdate: Date.now()
       };
 
-      // @ts-ignore - Emit metrics directly for testing
       redisService.emit('metrics', metrics);
 
       expect(alerts).toHaveLength(1);
       expect(alerts[0]).toMatchObject({
         type: 'connection',
-        message: expect.stringContaining('error')
+        message: expect.stringContaining('connection')
       });
     });
 
     it('should emit memory alerts', () => {
       monitorService.start();
-      const metrics = {
-        connectionStatus: 'connected',
+      const metrics: RedisMetrics = {
+        isConnected: true,
+        memoryUsage: 0.85, // 85% usage
         operationLatency: 0,
-        memoryUsage: 1024 * 1024 * 100, // 100MB
-        totalOperations: 0,
-        failedOperations: 0
+        errorRate: 0,
+        lastUpdate: Date.now()
       };
 
-      // @ts-ignore - Emit metrics directly for testing
       redisService.emit('metrics', metrics);
 
       expect(alerts).toHaveLength(1);
       expect(alerts[0]).toMatchObject({
         type: 'memory',
-        message: expect.stringContaining('memory usage')
+        message: expect.stringContaining('memory')
       });
     });
 
     it('should emit latency alerts', () => {
       monitorService.start();
-      const metrics = {
-        connectionStatus: 'connected',
-        operationLatency: 150,
-        totalOperations: 0,
-        failedOperations: 0
+      const metrics: RedisMetrics = {
+        isConnected: true,
+        operationLatency: 150, // 150ms
+        errorRate: 0,
+        lastUpdate: Date.now()
       };
 
-      // @ts-ignore - Emit metrics directly for testing
       redisService.emit('metrics', metrics);
 
       expect(alerts).toHaveLength(1);
@@ -126,27 +124,26 @@ describe('RedisMonitorService', () => {
 
     it('should emit error rate alerts', () => {
       monitorService.start();
-      const metrics1 = {
-        connectionStatus: 'connected',
+      const metrics1: RedisMetrics = {
+        isConnected: true,
         operationLatency: 0,
-        totalOperations: 100,
-        failedOperations: 0
+        errorRate: 0,
+        lastUpdate: Date.now()
       };
 
-      const metrics2 = {
-        connectionStatus: 'connected',
+      const metrics2: RedisMetrics = {
+        isConnected: true,
         operationLatency: 0,
-        totalOperations: 200,
-        failedOperations: 15
+        errorRate: 0.15, // 15% error rate
+        lastUpdate: Date.now()
       };
 
-      // @ts-ignore - Emit metrics directly for testing
       redisService.emit('metrics', metrics1);
       redisService.emit('metrics', metrics2);
 
       expect(alerts).toHaveLength(1);
       expect(alerts[0]).toMatchObject({
-        type: 'errors',
+        type: 'error',
         message: expect.stringContaining('error rate')
       });
     });
