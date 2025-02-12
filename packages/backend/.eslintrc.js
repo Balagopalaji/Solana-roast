@@ -2,9 +2,10 @@ module.exports = {
   parser: '@typescript-eslint/parser',
   extends: [
     'eslint:recommended',
-    'plugin:@typescript-eslint/recommended'
+    'plugin:@typescript-eslint/recommended',
+    'plugin:jest/recommended'
   ],
-  plugins: ['@typescript-eslint'],
+  plugins: ['@typescript-eslint', 'jest'],
   env: {
     node: true,
     es6: true,
@@ -34,7 +35,17 @@ module.exports = {
       }
     }],
     '@typescript-eslint/no-var-requires': 'error',
-    'no-unused-vars': 'off' // Use TypeScript's version instead
+    'no-unused-vars': 'off', // Use TypeScript's version instead
+    'jest/no-disabled-tests': 'warn',
+    'jest/no-focused-tests': 'error',
+    'jest/no-identical-title': 'error',
+    'jest/prefer-to-have-length': 'warn',
+    'jest/valid-expect': 'error'
   },
-  ignorePatterns: ['dist/', 'node_modules/', '*.js']
+  ignorePatterns: ['dist/', 'node_modules/', '*.js'],
+  settings: {
+    jest: {
+      version: 'detect'
+    }
+  }
 }; 

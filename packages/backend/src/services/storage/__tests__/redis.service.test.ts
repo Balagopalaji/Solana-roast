@@ -6,7 +6,7 @@ import { RedisService } from '../redis.service';
 import { RedisMetrics } from '../../../types/redis.types';
 import logger from '../../../utils/logger';
 import { environment } from '../../../config/environment';
-import { mockRedisClient, createMockRedisClient } from '../../../tests/mocks/ioredis';
+import { mockRedisClient } from '../../../tests/mocks/ioredis';
 
 // Mock dependencies
 jest.mock('ioredis');
@@ -65,40 +65,25 @@ describe('RedisService', () => {
     });
 
     it('should update metrics on connect event', () => {
-      const connectHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
-        call => call[0] === 'connect'
-      )?.[1];
-
-      if (connectHandler) {
-        connectHandler();
-        const metrics = redisService.getMetrics();
-        expect(metrics.isConnected).toBe(true);
-      }
+      // Simulate connect event
+      mockRedisClient.emit('connect');
+      const metrics = redisService.getMetrics();
+      expect(metrics.isConnected).toBe(true);
     });
 
     it('should update metrics on error event', () => {
-      const errorHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
-        call => call[0] === 'error'
-      )?.[1];
-
-      if (errorHandler) {
-        errorHandler(new Error('test error'));
-        const metrics = redisService.getMetrics();
-        expect(metrics.isConnected).toBe(false);
-        expect(metrics.errorRate).toBe(1);
-      }
+      // Simulate error event
+      mockRedisClient.emit('error', new Error('test error'));
+      const metrics = redisService.getMetrics();
+      expect(metrics.isConnected).toBe(false);
+      expect(metrics.errorRate).toBe(1);
     });
 
     it('should update metrics on close event', () => {
-      const closeHandler = (mockRedisClient.on as jest.Mock).mock.calls.find(
-        call => call[0] === 'close'
-      )?.[1];
-
-      if (closeHandler) {
-        closeHandler();
-        const metrics = redisService.getMetrics();
-        expect(metrics.isConnected).toBe(false);
-      }
+      // Simulate close event
+      mockRedisClient.emit('close');
+      const metrics = redisService.getMetrics();
+      expect(metrics.isConnected).toBe(false);
     });
   });
 

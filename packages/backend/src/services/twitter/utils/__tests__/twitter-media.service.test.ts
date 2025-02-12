@@ -1,63 +1,48 @@
+/// <reference types="jest" />
 import { TwitterMediaService, TwitterMediaError } from '../twitter-media.service';
+import { v2 as cloudinary } from 'cloudinary';
+import { environment } from '../../../../config/environment';
+import { TwitterApi } from 'twitter-api-v2';
 
 // Mock cloudinary module
-jest.mock('cloudinary', () => {
-  const mockUpload = jest.fn();
-  return {
-    v2: {
-      config: jest.fn(),
-      uploader: {
-        upload: mockUpload
-      }
+jest.mock('cloudinary', () => ({
+  v2: {
+    uploader: {
+      upload: jest.fn()
     }
-  };
-});
+  }
+}));
 
-// Import cloudinary after mocking
-const cloudinary = require('cloudinary');
+const mockOptimizedUrl = 'https://optimized-image.url';
+const mockMediaId = '123456789';
+const mockImageUrl = 'https://original-image.url';
 
 describe('TwitterMediaService', () => {
   let mediaService: TwitterMediaService;
-  let mockTwitterClient: any;
+  let mockTwitterClient: jest.Mocked<TwitterApi>;
 
   beforeEach(() => {
-    // Reset all mocks
-    jest.clearAllMocks();
-
-    // Create mock Twitter client
+    // Mock Twitter client
     mockTwitterClient = {
       v1: {
-        uploadMedia: jest.fn(),
-        mediaStatus: jest.fn()
+        uploadMedia: jest.fn().mockResolvedValue(mockMediaId),
+        mediaStatus: jest.fn().mockResolvedValue({ state: 'succeeded' })
       }
-    };
+    } as unknown as jest.Mocked<TwitterApi>;
 
-    // Initialize service
+    // Mock Cloudinary upload
+    (cloudinary.uploader.upload as jest.Mock).mockResolvedValue({
+      secure_url: mockOptimizedUrl
+    });
+
     mediaService = new TwitterMediaService();
   });
 
   describe('processAndUpload', () => {
-    const mockImageUrl = 'https://example.com/image.jpg';
-    const mockOptimizedUrl = 'https://res.cloudinary.com/demo/image/upload/v1/optimized.jpg';
-    const mockMediaId = '12345';
-
     beforeEach(() => {
-      // Mock Cloudinary upload
-      cloudinary.v2.uploader.upload.mockResolvedValue({
-        secure_url: mockOptimizedUrl
-      });
-
       // Mock fetch
       global.fetch = jest.fn().mockResolvedValue({
         arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
-      });
-
-      // Mock Twitter client responses
-      mockTwitterClient.v1.uploadMedia.mockResolvedValue({
-        media_id_string: mockMediaId
-      });
-      mockTwitterClient.v1.mediaStatus.mockResolvedValue({
-        processing_info: { state: 'succeeded' }
       });
     });
 
@@ -65,13 +50,13 @@ describe('TwitterMediaService', () => {
       const mediaId = await mediaService.processAndUpload(mockImageUrl, mockTwitterClient);
 
       expect(mediaId).toBe(mockMediaId);
-      expect(cloudinary.v2.uploader.upload).toHaveBeenCalledWith(mockImageUrl, expect.any(Object));
+      expect(cloudinary.uploader.upload).toHaveBeenCalledWith(mockImageUrl, expect.any(Object));
       expect(mockTwitterClient.v1.uploadMedia).toHaveBeenCalled();
       expect(mockTwitterClient.v1.mediaStatus).toHaveBeenCalledWith(mockMediaId);
     });
 
     it('should handle Cloudinary optimization failure', async () => {
-      cloudinary.v2.uploader.upload.mockRejectedValue(new Error('Optimization failed'));
+      cloudinary.uploader.upload.mockRejectedValue(new Error('Optimization failed'));
 
       await expect(mediaService.processAndUpload(mockImageUrl, mockTwitterClient))
         .rejects

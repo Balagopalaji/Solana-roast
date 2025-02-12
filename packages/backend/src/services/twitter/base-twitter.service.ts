@@ -1,4 +1,5 @@
 import { TwitterApi } from 'twitter-api-v2';
+import sharp from 'sharp';
 import logger from '../../utils/logger';
 import { environment } from '../../config/environment';
 import { EventBusService } from '../events/event-bus.service';
@@ -174,8 +175,11 @@ export abstract class BaseTwitterService {
 
     // Image dimensions validation
     try {
-      const sharp = require('sharp');
       const metadata = await sharp(buffer).metadata();
+      
+      if (!metadata.width || !metadata.height) {
+        throw new Error('Could not determine image dimensions');
+      }
       
       if (metadata.width > this.MEDIA_VALIDATION.maxDimensions.width ||
           metadata.height > this.MEDIA_VALIDATION.maxDimensions.height) {

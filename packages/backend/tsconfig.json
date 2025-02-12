@@ -10,15 +10,18 @@
     "resolveJsonModule": true,
     "types": ["node", "jest"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "src",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    "baseUrl": ".",
+    "baseUrl": "src",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./*"]
     },
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": [
+      "../../node_modules/@types",
+      "./src/types"
+    ]
   },
   "include": [
     "src/**/*",
