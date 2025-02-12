@@ -7,6 +7,17 @@ This guide provides a sequence of focused prompts for implementing the Twitter i
 Before implementing ANY prompt or making ANY changes:
 
 1. **Role**: Always act as a senior full-stack engineer with extensive TypeScript and Twitter API experience
+2. **Documentation**: Keep all documentation up-to-date with changes
+3. **Testing**: Write tests for all new functionality
+4. **Security**: Follow security best practices, especially for auth flows
+5. **Monitoring**: Ensure proper logging and monitoring
+6. **Compatibility**: Maintain backward compatibility
+7. **Error Handling**: Implement comprehensive error handling
+8. **Rate Limiting**: Consider API rate limits in all operations
+9. **Type Safety**: Maintain strict TypeScript types
+10. **Code Style**: Follow established project patterns
+
+1. **Role**: Always act as a senior full-stack engineer with extensive TypeScript and Twitter API experience
 2. **Documentation**: 
    - Study this `CURSOR_COMPOSER_PROMPTS.md` document thoroughly
    - Review all relevant documentation in the `/docs` directory
@@ -811,178 +822,189 @@ VALIDATION:
 - [ ] Rate limiting functional
 ```
 
-### Prompt 11: User Authentication Flow
-```prompt
-BEFORE STARTING:
-- Review the Global Reminders section
-- Ensure Prompt 10 is completed
-- Review Twitter API hybrid usage (v1.1 + v2)
-- Verify ngrok tunnel is active for development
-- Confirm Redis is operational
+### Prompt 11: Hybrid API Integration
 
-Implement the user authentication flow:
+### Context
+We have successfully implemented the OAuth 2.0 foundation and now need to integrate our hybrid approach for Twitter API interactions. This includes using v1.1 for media uploads and v2 for tweet creation, while maintaining our existing dev account functionality.
 
-1. Frontend Components
-   - TwitterAuthButton component with environment awareness
-   - Callback handling for both ngrok and production URLs
-   - Loading states
-   - Error handling
-   - Environment indicator for development
-   - Redis status monitoring
+### Critical Requirements
 
-2. Backend Services
-   - OAuth endpoints with environment routing
-   - Token management with Redis:
-     * Secure storage
-     * Encryption
-     * Expiry handling
-     * Refresh management
-   - Session handling:
-     * Redis session storage
-     * Environment awareness
-     * Cleanup routines
-   - Rate limiting:
-     * Redis-based limiting
-     * Environment-specific limits
-     * Monitoring
-   - Environment-specific configurations
+1. **Preserve Existing Functionality**:
+   - Maintain dev account tweet functionality intact
+   - Keep OAuth 1.0a routes and configurations
+   - Preserve existing media upload pipeline
 
-3. Hybrid API Integration
-   - Media upload (v1.1)
-   - Tweet creation (v2)
-   - Error recovery
-   - Rate limit handling
-   - Environment-aware URL construction
-   - Redis integration:
-     * Token validation
-     * Session checks
-     * Rate monitoring
+2. **Redis Infrastructure**:
+   - ✅ Secure token storage with encryption
+   - ✅ Session management with Redis Store
+   - ✅ Rate limiting with Redis
+   - ✅ Health monitoring and metrics
 
-4. Development Tools
-   - Environment switching utility
-   - ngrok URL validation
-   - Callback URL verification
-   - Development mode indicators
-   - Easy environment debugging
-   - Redis management:
-     * Connection monitoring
-     * Data inspection
-     * Performance tracking
+3. **Hybrid API Integration**:
+   - Media upload (v1.1):
+     * Chunked upload support
+     * Status monitoring
+     * Retry mechanisms
+   - Tweet creation (v2):
+     * Enhanced error handling
+     * Rate limit management
+     * Environment-aware URLs
 
-5. Testing & Monitoring
-   - Auth flow testing in both environments
-   - Token lifecycle verification
-   - Error scenarios
-   - Performance metrics
-   - Environment transition testing
-   - Redis health checks:
-     * Connection status
-     * Memory usage
-     * Operation latency
-     * Error rates
+### Implementation Guide
 
-VALIDATION:
-- [ ] Auth flow working end-to-end in both environments
-- [ ] Media upload successful
-- [ ] Tweet creation working
-- [ ] Error handling robust
-- [ ] Development/Production switching working
-- [ ] ngrok integration tested
-- [ ] Redis operations verified
-- [ ] Token storage secure
-- [ ] Sessions managed correctly
+1. **Media Upload Service**:
+```typescript
+class TwitterMediaService {
+  private readonly CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+  private readonly MAX_RETRIES = 3;
+  
+  async processAndUpload(imageUrl: string, client: TwitterApi): Promise<string> {
+    // 1. Optimize image with Cloudinary
+    const optimizedUrl = await this.optimizeImage(imageUrl);
+    
+    // 2. Download and validate
+    const buffer = await this.downloadAndValidate(optimizedUrl);
+    
+    // 3. Upload to Twitter
+    const mediaId = buffer.length > this.CHUNK_SIZE
+      ? await this.uploadLargeMedia(buffer, client)
+      : await this.uploadMedia(buffer, client);
+    
+    // 4. Monitor processing
+    await this.checkMediaStatus(mediaId, client);
+    
+    return mediaId;
+  }
+}
 ```
 
-### Prompt 12: Infrastructure Monitoring
-```prompt
-BEFORE STARTING:
-- Review the Global Reminders section
-- Ensure Prompts 10-11 are completed
-- Review monitoring requirements
-- Verify environment-specific monitoring needs
-- Check Redis monitoring capabilities
-
-Implement comprehensive monitoring:
-
-1. Authentication Monitoring
-   - Auth success/failure rates per environment
-   - Token refresh metrics
-   - Session analytics
-   - Error tracking with environment context
-   - ngrok connection monitoring
-   - Redis metrics:
-     * Token operations
-     * Storage usage
-     * Operation latency
-
-2. API Monitoring
-   - Rate limit tracking per environment
-   - API latency measurements
-   - Error rates with environment context
-   - Usage patterns
-   - ngrok tunnel health
-   - Redis performance:
-     * Connection pool status
-     * Command statistics
-     * Memory usage
-     * Network metrics
-
-3. Performance Metrics
-   - Response times per environment
-   - Resource usage tracking
-   - Cache hit rates
-   - Bottleneck detection
-   - Environment transition impact
-   - Redis insights:
-     * Operation throughput
-     * Memory efficiency
-     * Connection health
-     * Command patterns
-
-4. Development Tools
-   - Environment status dashboard
-   - ngrok tunnel monitoring
-   - URL validation tools
-   - Environment switching logs
-   - Configuration verification
-   - Redis utilities:
-     * Connection testing
-     * Data inspection
-     * Performance analysis
-     * Error investigation
-
-5. Alerting System
-   - Critical error alerts
-   - Rate limit warnings
-   - Performance degradation
-   - Security incidents
-   - Environment-specific thresholds
-   - Redis alerts:
-     * Connection issues
-     * Memory warnings
-     * Performance problems
-     * Security events
-
-6. Production Migration Guide
-   - Pre-migration checklist
-   - Redis transition steps:
-     * Production instance setup
-     * Security configuration
-     * Data migration plan
-     * Verification procedures
-   - Post-migration validation
-   - Rollback procedures
-
-VALIDATION:
-- [ ] Monitoring systems active in all environments
-- [ ] Alerts configured with environment context
-- [ ] Metrics being collected
-- [ ] Dashboard operational
-- [ ] Development tools functioning
-- [ ] Environment switching monitored
-- [ ] Redis monitoring complete
-- [ ] Migration guide documented
+2. **Tweet Creation Service**:
+```typescript
+class TwitterService {
+  async shareWithMedia(text: string, imageUrl: string): Promise<string> {
+    // 1. Process media
+    const mediaId = await this.mediaService.processAndUpload(
+      imageUrl,
+      this.client
+    );
+    
+    // 2. Create tweet with v2 endpoint
+    const tweet = await this.client.v2.tweet({
+      text: this.formatTweetText(text),
+      media: { media_ids: [mediaId] }
+    });
+    
+    return `https://twitter.com/i/web/status/${tweet.data.id}`;
+  }
+}
 ```
+
+3. **Rate Limiting Implementation**:
+```typescript
+const rateLimiter = rateLimit({
+  windowMs: environment.twitter.rateLimits.WINDOW_MS,
+  max: (req) => {
+    if (req.path.includes('/upload')) {
+      return environment.twitter.rateLimits.UPLOAD_LIMIT;
+    }
+    return environment.twitter.rateLimits.TWEET_LIMIT;
+  },
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rate_limit:'
+  })
+});
+```
+
+4. **Error Recovery**:
+```typescript
+private async retryWithDelay(fn: () => Promise<any>, context: string): Promise<any> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (this.canRetry(error) && this.retryCount < MAX_RETRIES) {
+      this.retryCount++;
+      await new Promise(resolve => 
+        setTimeout(resolve, RETRY_DELAY * this.retryCount)
+      );
+      return this.retryWithDelay(fn, context);
+    }
+    throw this.handleError(error);
+  }
+}
+```
+
+### Testing Requirements
+
+1. **Media Upload Tests**:
+   - Test chunked upload functionality
+   - Verify retry mechanisms
+   - Test error handling
+   - Validate media constraints
+
+2. **Tweet Creation Tests**:
+   - Test v2 endpoint integration
+   - Verify rate limiting
+   - Test error scenarios
+   - Validate tweet formatting
+
+3. **Integration Tests**:
+   - Test full upload-to-tweet flow
+   - Verify Redis integration
+   - Test session handling
+   - Validate monitoring
+
+### Monitoring Requirements
+
+1. **Media Upload Monitoring**:
+   - Track upload success rates
+   - Monitor processing times
+   - Track retry attempts
+   - Log validation failures
+
+2. **Rate Limit Monitoring**:
+   - Track rate limit usage
+   - Monitor rate limit errors
+   - Track endpoint usage
+   - Alert on threshold breaches
+
+3. **Redis Monitoring**:
+   - Monitor connection status
+   - Track memory usage
+   - Monitor operation latency
+   - Track error rates
+
+### Documentation Updates
+
+1. **API Integration**:
+   - Document v1.1 vs v2 usage
+   - Detail media upload flow
+   - Explain rate limiting
+   - Document error handling
+
+2. **Redis Infrastructure**:
+   - Document token storage
+   - Detail session handling
+   - Explain monitoring setup
+   - Document rate limiting
+
+### Verification Checklist
+
+- [ ] Media upload service implemented and tested
+- [ ] Tweet creation with v2 endpoint working
+- [ ] Rate limiting properly configured
+- [ ] Error recovery mechanisms tested
+- [ ] Redis monitoring in place
+- [ ] Documentation updated
+- [ ] Integration tests passing
+- [ ] Monitoring alerts configured
+
+### References
+
+1. [Twitter API v2 Documentation](https://developer.twitter.com/en/docs/twitter-api/tweets/manage-tweets/api-reference/post-tweets)
+2. [Media Upload API Documentation](https://developer.twitter.com/en/docs/twitter-api/v1/media/upload-media/api-reference/post-media-upload)
+3. [Rate Limiting Guidelines](https://developer.twitter.com/en/docs/twitter-api/rate-limits)
+4. [Redis Best Practices](https://redis.io/topics/best-practices)
 
 ## Implementation Sequence
 
